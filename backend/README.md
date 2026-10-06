@@ -152,10 +152,10 @@ Not in Phase 6: PDF exports (CSV only), live push for notifications, email/SMS d
 
 ## Deployment setup
 - Files go to Supabase Storage when `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` are set; without them, development uses local disk.
-- The repository includes a baseline Prisma migration for the current schema. Render runs `prisma migrate deploy` before starting the API.
-- For later schema changes, use `npx prisma migrate dev --name <change_name>` against a development database and commit the generated `prisma/migrations/` directory. Do not run `migrate dev` against production.
-- OTP codes are delivered by Termii (SMS) and Resend (email) when configured. The Node API is configured for Node 22.
-- See the root README for the Supabase + Render + Netlify deployment steps.
+- The repository includes a baseline Prisma migration for the current schema. The free-test Render start command runs `prisma migrate deploy`, then the idempotent seed, before starting the API (it repeats on wake/restart).
+- For production, move `prisma migrate deploy` to Render's paid pre-deploy command and seed once. For later schema changes, use `npx prisma migrate dev --name <change_name>` against a development database and commit the generated `prisma/migrations/` directory. Do not run `migrate dev` against production.
+- OTP codes are delivered by Termii (SMS) and Resend (email) when configured. In the test Blueprint, development OTP codes are logged instead. The Node API is configured for Node 22.
+- See the root README for free-test and production deployment steps.
 
 ## Phase 9 (added)
 GET /api/units/:id (staff edit data) | DELETE /api/units/:id (no history, not reserved/occupied) | PATCH /api/properties/:id (name/address only before review) | DELETE /api/properties/:id (only draft/rejected, no units).

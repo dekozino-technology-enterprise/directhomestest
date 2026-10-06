@@ -88,6 +88,20 @@ function paymentComplete() {
 
 // ---------- actions ----------
 const need = () => (user() ? true : (say("Please sign in first"), (location.hash = "#/login"), false));
+async function startPropertyPayment(id, endpoint) {
+  const d = await api(`properties/${id}/${endpoint}`, { body: {} });
+  if (d.devMode && d.reference) {
+    await api(`properties/${id}/pay/simulate`, { body: { reference: d.reference } });
+    say("Demo fee recorded; no real payment was made.");
+    const next = `#/property/${id}`;
+    if (location.hash !== next) location.hash = next;
+    else await EXTRA.property(id);
+    return;
+  }
+  const url = d.authorization_url || d.authorizationUrl || d.url;
+  if (url) location.href = url;
+  else say(d.error || "Payment is unavailable.");
+}
 const A = {
   logout: () => logout(),
   enquire: async (id) => { if (!need()) return; const m = prompt("Your message to the owner:"); if (!m) return; const e = await api("enquiries", { body: { unitId: id, message: m } }); location.hash = "#/chat/" + (e.id || e.enquiry?.id); },
@@ -107,8 +121,8 @@ const A = {
   confirmpay: (id) => api(`tokens/${id}/confirm`, { body: { amountKobo: Math.round(Number(prompt("Amount received in naira (must equal the total due):")) * 100) } }),
   notrec: (id) => api(`tokens/${id}/not-received`, { body: {} }),
   tstat: (id, x) => api(`tickets/${id}/status`, { body: { status: x } }),
-  payfee: async (id) => { const d = await api(`properties/${id}/pay`, { body: {} }); const url = d.authorization_url || d.authorizationUrl || d.url; if (url) location.href = url; else say("Payment started: " + JSON.stringify(d).slice(0, 120)); },
-  renew: async (id) => { const d = await api(`properties/${id}/renew`, { body: {} }); const url = d.authorization_url || d.authorizationUrl || d.url; if (url) location.href = url; },
+  payfee: (id) => startPropertyPayment(id, "pay"),
+  renew: (id) => startPropertyPayment(id, "renew"),
   submit: (id) => api(`properties/${id}/submit`, { body: {} }),
   pub: (id) => api(`units/${id}/publish`, { body: {} }),
   unpub: (id) => api(`units/${id}/unpublish`, { body: {} }),
@@ -128,4 +142,5 @@ async function route() {
   try { if (p[1] === "unit") await unit(p[2]); else if (p[1] === "login") authForm(false); else if (p[1] === "register") authForm(true); else if (p[1] === "dash") await dash(); else if (p[1] === "chat") await chat(p[2]); else if (p[1] === "notes") await notes(); else if (p[1] === "search") await search(); else if (p[1] === "payment-complete") paymentComplete(); else if (EXTRA[p[1]]) await EXTRA[p[1]](p[2], p[3]); else await EXTRA.home(); }
   catch (x) { app.innerHTML = `<p class="card">⚠️ ${esc(x.message)}</p>`; }
 }
+window.startDirectHomesApp = route;
 

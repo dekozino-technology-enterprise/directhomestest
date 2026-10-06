@@ -99,4 +99,3 @@ EXTRA.ticket = async (id) => {
 };
 FORMS.tfile = async (f) => { const d = new FormData(); d.append("file", f.file); if (f.phase) d.append("phase", f.phase); await api(`tickets/${f.id}/files`, { form: d }); say("Uploaded"); EXTRA.ticket(f.id); };
 FORMS.tcomment = async (f) => { await api(`tickets/${f.id}/comments`, { body: { body: f.body, internal: !!f.internal } }); EXTRA.ticket(f.id); };
-route();

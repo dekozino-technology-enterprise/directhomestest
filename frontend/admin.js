@@ -80,4 +80,3 @@ Object.assign(A, {
     return go("Add", F, (v) => { const b = { ...v }; if (path === "fee-tiers") { b.minUnits = Number(v.minUnits); b.amountNaira = Number(v.amountNaira); if (v.maxUnits) b.maxUnits = Number(v.maxUnits); else delete b.maxUnits; } if (path === "locations" && parent) b.parentId = parent; for (const k in b) if (b[k] === "") delete b[k]; return api("admin/" + path, { body: b }); });
   },
 });
-route();
