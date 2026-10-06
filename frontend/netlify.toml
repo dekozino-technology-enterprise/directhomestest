@@ -1,11 +1,11 @@
 # Replace YOUR-API with your Render service host. The browser then calls /api on your own site, so no CORS setup is needed.
 [[redirects]]
   from = "/api/*"
-  to = "https://YOUR-API.onrender.com/api/:splat"
+  to = "https://house-mgmt-api.onrender.com/api/:splat"
   status = 200
   force = true
 [[redirects]]
   from = "/media/*"
-  to = "https://YOUR-API.onrender.com/media/:splat"
+  to = "https://house-mgmt-api.onrender.com/media/:splat"
   status = 200
   force = true
