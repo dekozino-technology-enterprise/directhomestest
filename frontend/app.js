@@ -1,4 +1,5 @@
 const API = window.API_URL || "", app = document.getElementById("app");
+let activeRouteVersion = 0;
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const user = () => { try { return JSON.parse(localStorage.getItem("u")); } catch { return null; } };
 const arr = (d) => Array.isArray(d) ? d : d && typeof d === "object" ? [d.items, d.results, d.tokens, d.tenancies, d.tickets, d.properties, d.units, d.viewings].find(Array.isArray) || [] : [];
@@ -47,6 +48,7 @@ const btn = (a, id, label, cls = "", x = "") => `<button class="${cls}" data-a="
 
 // ---------- pages ----------
 async function search() {
+  const pageVersion = activeRouteVersion;
   const f = new URLSearchParams(location.hash.split("?")[1] || "");
   app.innerHTML = `<section class="search-page">
     <div class="search-toolbar"><div><p class="eyebrow"><span class="eyebrow-dot"></span> A better way to rent</p><h1>Find a place to call home.</h1><p>Browse homes listed directly by owners. No agents, no viewing fees.</p></div><span class="search-trust">✓ Owner-direct listings</span></div>
@@ -66,7 +68,10 @@ async function search() {
     location.hash = "#/search" + (params.toString() ? "?" + params : "");
   };
   const rows = arr(await api("public/units?" + f));
+  // Do not let a late search response update a page the user has already left.
+  if (pageVersion !== activeRouteVersion) return;
   const result = document.getElementById("res"), count = document.getElementById("result-count");
+  if (!result?.isConnected || !count?.isConnected) return;
   if (!rows.length) {
     count.textContent = "No listings found";
     result.innerHTML = `<div class="empty-state"><strong>No homes match those filters just yet.</strong><br>Try a nearby area or remove a filter to see more listings.</div>`;
@@ -85,7 +90,9 @@ async function search() {
   }).join("");
 }
 async function unit(id) {
+  const pageVersion = activeRouteVersion;
   const u = await api("public/units/" + id);
+  if (pageVersion !== activeRouteVersion) return;
   const photos = (u.images || []).map((raw, i) => {
     const src = mediaUrl(raw);
     return src ? `<img src="${esc(src)}" alt="${esc(u.title || "Home")}${i ? ` — photo ${i + 1}` : ""}" loading="lazy">` : "";
@@ -132,9 +139,11 @@ function authForm(reg) {
   };
 }
 async function dash() {
+  const pageVersion = activeRouteVersion;
   const u = user(); if (!u) return (location.hash = "#/login");
   if (u.role === "ADMIN") return (location.hash = "#/a/overview");
   const staff = u.role !== "TENANT", d = await api("dashboard/" + (staff ? "staff" : "tenant"));
+  if (pageVersion !== activeRouteVersion) return;
   const stats = Object.entries(d || {}).filter(([, v]) => typeof v === "number").map(([k, v]) => `<div class="stat-card"><strong>${esc(v)}</strong><span>${esc(humanize(k))}</span></div>`).join("");
   const firstName = String(u.fullName || "there").trim().split(/\s+/)[0];
   let h = `<section class="dashboard-heading"><div><p class="eyebrow"><span class="eyebrow-dot"></span> Your workspace</p><h1>Welcome back, ${esc(firstName)}.</h1><p>Here is what is happening with your home today.</p></div><div class="profile-pill"><span class="profile-avatar">${esc(firstName.slice(0, 1).toUpperCase())}</span>${esc(humanize(u.role || "member"))}</div></section><div class="stats-grid">${stats || `<div class="empty-state">Your account summary will appear here.</div>`}</div>`;
@@ -155,10 +164,13 @@ async function dash() {
     h += section("Properties", props, (p) => `<div class="card"><a href="#/property/${esc(p.id)}"><b>${esc(p.name)}</b></a> <span class="tag">${esc(humanize(p.status || ""))}</span>${kv(p)}<div class="row">${u.role === "OWNER" ? ({ VERIFIED: btn("payfee", p.id, "Pay yearly fee"), EXPIRED: btn("renew", p.id, "Renew"), ACTIVE: btn("renew", p.id, "Renew early", "g"), DRAFT: "", NEEDS_CHANGES: btn("submit", p.id, "Resubmit"), DOCS_UPLOADED: btn("submit", p.id, "Submit for review") }[p.status] || "") : ""}</div></div>`);
     h += section("Units", units, (x) => `<div class="card"><b>${esc(x.title)}</b> <span class="tag">${esc(humanize(x.status || ""))}</span>${kv(x)}<div class="row">${x.status === "AVAILABLE" ? btn("unpub", x.id, "Take down", "g") : btn("pub", x.id, "Publish")}<a href="#/unitedit/${esc(x.id)}"><button class="g">Edit</button></a>${btn("delunit", x.id, "Delete", "r")}</div></div>`);
   }
+  if (pageVersion !== activeRouteVersion) return;
   app.innerHTML = h;
 }
 async function chat(id) {
+  const pageVersion = activeRouteVersion;
   const m = arr(await api(`enquiries/${id}/messages`)), me = user();
+  if (pageVersion !== activeRouteVersion) return;
   app.innerHTML = `<section class="chat-page"><div class="page-heading"><div><p class="eyebrow"><span class="eyebrow-dot"></span> Direct conversation</p><h1>Messages</h1><p>Talk directly with the owner or tenant.</p></div></div><div class="chat-stream">${m.map((x) => `<div class="msg ${x.senderId === me?.id ? "me" : ""}">${esc(x.body)}</div>`).join("") || `<div class="empty-state">No messages yet. Start the conversation below.</div>`}</div><form id="mf" class="chat-form"><label class="sr-only" for="message-body">Your message</label><input id="message-body" name="body" placeholder="Write a message…" required><button type="submit">Send <span aria-hidden="true">→</span></button></form></section>`;
   document.getElementById("mf").onsubmit = async (e) => {
     e.preventDefault(); const button = e.target.querySelector("button"); button.disabled = true;
@@ -167,7 +179,10 @@ async function chat(id) {
   };
 }
 async function notes() {
-  const d = await api("dashboard/notifications"), items = d?.items || [];
+  const pageVersion = activeRouteVersion;
+  const d = await api("dashboard/notifications");
+  if (pageVersion !== activeRouteVersion) return;
+  const items = d?.items || [];
   app.innerHTML = `<section><div class="page-heading"><div><p class="eyebrow"><span class="eyebrow-dot"></span> Stay up to date</p><h1>Alerts & notices</h1><p>Important updates about your account and home.</p></div></div>${items.map((n) => `<article class="notice-card"><span class="notice-mark" aria-hidden="true">✦</span><div><b>${esc(n.title || humanize(n.type || "Notification"))}</b><p>${esc(n.body || n.message || "")}</p></div></article>`).join("") || `<div class="empty-state">You’re all caught up. New updates will appear here.</div>`}</section>`;
   api("dashboard/notifications/read", { body: {} }).catch(() => {});
 }
@@ -231,6 +246,7 @@ function routeLoading() {
   app.innerHTML = `<div class="loading-panel" aria-label="Loading page"><span class="skeleton wide"></span><span class="skeleton medium"></span><span class="skeleton short"></span></div>`;
 }
 async function route() {
+  const routeVersion = ++activeRouteVersion;
   const returnedReference = new URLSearchParams(location.search).get("reference") || new URLSearchParams(location.search).get("trxref");
   if (returnedReference && (!location.hash || location.hash === "#/")) {
     location.hash = "#/payment-complete?reference=" + encodeURIComponent(returnedReference);
@@ -251,8 +267,9 @@ async function route() {
     else if (EXTRA[p[1]]) await EXTRA[p[1]](p[2], p[3]);
     else await EXTRA.home();
   } catch (x) {
-    app.innerHTML = `<section class="error-state" role="alert"><div class="error-mark">!</div><p class="eyebrow">Something didn’t load</p><h1>Please try again.</h1><p>${esc(x.message || "We couldn’t load this page. Check your connection and try again.")}</p><div class="error-actions"><button type="button" data-retry>Try again</button><a class="button button-secondary" href="#/">Return home</a></div></section>`;
-  } finally { app.setAttribute("aria-busy", "false"); }
+    // An error from an older route must not replace the page now on screen.
+    if (routeVersion === activeRouteVersion) app.innerHTML = `<section class="error-state" role="alert"><div class="error-mark">!</div><p class="eyebrow">Something didn’t load</p><h1>Please try again.</h1><p>${esc(x.message || "We couldn’t load this page. Check your connection and try again.")}</p><div class="error-actions"><button type="button" data-retry>Try again</button><a class="button button-secondary" href="#/">Return home</a></div></section>`;
+  } finally { if (routeVersion === activeRouteVersion) app.setAttribute("aria-busy", "false"); }
 }
 window.startDirectHomesApp = route;
 
