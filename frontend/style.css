@@ -150,3 +150,39 @@ dialog{width:min(94vw,520px);max-height:88vh;overflow-y:auto;border:1px solid va
   .admin-callout .button{width:100%}
   .admin-content .row>button,.admin-content .row>.button{flex:1 1 140px}
 }
+/* Keep authenticated dashboard workflows clear; the public-site footer remains for guests. */
+body.has-sidebar .site-footer{display:none}
+
+/* Dashboard shortcuts and ticket workspaces */
+.quick-actions{margin:0 0 34px;border:1px solid var(--line);border-radius:18px;padding:20px;background:rgba(255,254,250,.8);box-shadow:0 5px 18px rgba(20,50,41,.035)}
+.quick-actions-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin:0 0 14px}
+.quick-actions-heading .eyebrow{margin-bottom:7px}
+.quick-actions-heading h2{margin:0 0 5px;font-family:var(--sans);font-size:19px;font-weight:730;letter-spacing:-.035em}
+.quick-actions-heading p:last-child{margin:0;color:var(--muted);font-size:12px}
+.quick-actions-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(205px,1fr));gap:10px}
+.quick-action-card{display:flex;min-width:0;min-height:76px;align-items:center;gap:11px;border:1px solid var(--line);border-radius:13px;padding:13px;color:var(--ink);background:var(--surface);text-decoration:none;transition:transform .18s,border-color .18s,box-shadow .18s}
+.quick-action-card:hover{transform:translateY(-2px);border-color:var(--sage-deep);color:var(--ink);box-shadow:var(--shadow-soft)}
+.quick-action-icon{display:grid;width:35px;height:35px;flex:0 0 35px;place-items:center;border-radius:11px;color:var(--forest);background:var(--sage);font-size:19px;font-weight:700}
+.quick-action-copy{display:flex;min-width:0;flex:1;flex-direction:column;line-height:1.35}
+.quick-action-copy b{font-size:12px;font-weight:740}
+.quick-action-copy small{margin-top:3px;color:var(--muted);font-size:10px;line-height:1.4}
+.quick-action-arrow{color:var(--forest-light);font-size:17px}
+.ticket-create-page,.tickets-page{max-width:920px;margin:0 auto}
+.ticket-create-form{max-width:760px;padding:22px}
+.ticket-create-form>button{align-self:flex-start;margin-top:3px}
+.ticket-summary-list{display:grid;gap:10px}
+.ticket-summary-card{display:flex;min-width:0;align-items:center;gap:13px;border:1px solid var(--line);border-radius:14px;padding:14px 16px;color:var(--ink);background:var(--surface);text-decoration:none;transition:border-color .18s,box-shadow .18s,transform .18s}
+.ticket-summary-card:hover{transform:translateY(-1px);border-color:var(--sage-deep);color:var(--ink);box-shadow:var(--shadow-soft)}
+.ticket-summary-icon{display:grid;width:38px;height:38px;flex:0 0 38px;place-items:center;border-radius:12px;color:var(--forest);background:var(--sage);font-size:20px}
+.ticket-summary-copy{display:flex;min-width:0;flex:1;flex-direction:column;line-height:1.4}
+.ticket-summary-copy b{overflow:hidden;font-size:13px;text-overflow:ellipsis;white-space:nowrap}
+.ticket-summary-copy small{margin-top:3px;overflow:hidden;color:var(--muted);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:720px){
+  .quick-actions{padding:15px}
+  .quick-actions-grid{grid-template-columns:1fr}
+  .tickets-page .page-heading{align-items:flex-start;flex-direction:column}
+  .tickets-page .page-heading .button,.ticket-create-form>button{width:100%}
+  .ticket-summary-card{align-items:flex-start;flex-wrap:wrap;padding:12px}
+  .ticket-summary-card>.tag{margin-left:51px}
+  .ticket-create-form{padding:16px}
+}

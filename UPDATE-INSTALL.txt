@@ -1,0 +1,31 @@
+Direct Homes — dashboard and phone-verification update
+
+This bundle contains the responsive frontend refresh plus the backend source changes that remove phone verification as a prerequisite for KYC submission and tenant payment-token requests. For those two workflows to work in the deployed app, apply and deploy both frontend and backend changes.
+
+GUI install steps:
+1. Extract this ZIP.
+2. Copy each included file into the same path in your repository, replacing the matching file. Preserve the directory paths.
+3. Do not replace frontend/config.js or frontend/netlify.toml; they are intentionally not included.
+4. Commit and push to the branch connected to your Netlify and Render services. Wait for the API service on Render to finish deploying before testing KYC or payment-token requests.
+
+What the backend change removes:
+- KYC submission no longer requires phoneVerified. If REQUIRE_EMAIL_VERIFY=true, the existing email-verification requirement still applies.
+- Tenant payment-token requests no longer require phoneVerified. Authentication, tenant-role checks, live-listing checks, duplicate/open-request limits, KYC review, file ownership, and other safeguards remain.
+- SMS send/confirm endpoints are not called by the refreshed frontend.
+
+The included phase5.e2e.ts expectation now covers token requests from a tenant whose phone is unverified. Backend TypeScript compilation passed. The full end-to-end suite requires a configured empty TEST_DATABASE_URL and was not run here.
+
+Included frontend files:
+- frontend/index.html
+- frontend/style.css
+- frontend/app.js
+- frontend/pages.js
+- frontend/forms.js
+- frontend/admin.js
+- frontend/ui.js
+- frontend/assets/hero-residence.jpg
+
+Included backend files:
+- backend/src/routes/verify.ts
+- backend/src/routes/tokens.ts
+- backend/tests/phase5.e2e.ts

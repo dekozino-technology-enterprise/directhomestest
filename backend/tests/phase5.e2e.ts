@@ -65,14 +65,12 @@ async function main() {
   ok((await prisma.auditLog.count({ where: { action: "ACCOUNT_NUMBER_VIEWED" } })) === 1, "reveal is audited");
 
   console.log("\n— REQUESTING A TOKEN");
-  r = await call("POST", "/tokens/request", t1.tok, { unitId: uA.id });
-  ok(r.s === 403, "tenant with unverified phone is blocked");
-  await prisma.user.updateMany({ where: { role: "TENANT" }, data: { phoneVerified: true } });
+  ok(!(await prisma.user.findUnique({ where: { id: t1.id } }))!.phoneVerified, "test tenant has not verified a phone");
+  r = await call("POST", "/tokens/request", t1.tok, { unitId: uA.id, note: "Hi" });
+  ok(r.s === 201 && r.j.totalKobo === TOTAL, "tenant without phone verification can request a token; total = rent+caution+service");
+  const tok1 = r.j.id;
   r = await call("POST", "/tokens/request", owner.tok, { unitId: uA.id });
   ok(r.s === 403, "owners cannot request tokens");
-  r = await call("POST", "/tokens/request", t1.tok, { unitId: uA.id, note: "Hi" });
-  ok(r.s === 201 && r.j.totalKobo === TOTAL, "tenant1 requests unit A; total = rent+caution+service");
-  const tok1 = r.j.id;
   r = await call("POST", "/tokens/request", t1.tok, { unitId: uA.id });
   ok(r.s === 409, "duplicate open request blocked");
   r = await call("POST", "/tokens/request", t2.tok, { unitId: uA.id });

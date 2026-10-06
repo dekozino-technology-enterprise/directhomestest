@@ -147,11 +147,24 @@ async function dash() {
   const stats = Object.entries(d || {}).filter(([, v]) => typeof v === "number").map(([k, v]) => `<div class="stat-card"><strong>${esc(v)}</strong><span>${esc(humanize(k))}</span></div>`).join("");
   const firstName = String(u.fullName || "there").trim().split(/\s+/)[0];
   let h = `<section class="dashboard-heading"><div><p class="eyebrow"><span class="eyebrow-dot"></span> Your workspace</p><h1>Welcome back, ${esc(firstName)}.</h1><p>Here is what is happening with your home today.</p></div><div class="profile-pill"><span class="profile-avatar">${esc(firstName.slice(0, 1).toUpperCase())}</span>${esc(humanize(u.role || "member"))}</div></section><div class="stats-grid">${stats || `<div class="empty-state">Your account summary will appear here.</div>`}</div>`;
+  const quickActions = staff ? [
+    ["Get verified", "#/onboard", "Identity and bank details", "✓"],
+    ...(u.role === "OWNER" ? [["Add a property", "#/pnew", "Start a new property listing", "+"]] : []),
+    ["Add a unit", "#/unitnew", "Create or update a rental unit", "+"],
+    ["Maintenance", "#/tickets", "Review tenant requests", "⌁"],
+    ["Send a notice", "#/announce", "Share an update with tenants", "↗"],
+  ] : [
+    ["Find a home", "#/search", "Browse and contact owners", "⌕"],
+    ["Raise a ticket", "#/ticket/new", "Report a maintenance issue", "+"],
+    ["My tickets", "#/tickets", "Track repairs and updates", "⌁"],
+    ["Notices", "#/news", "Read property updates", "↗"],
+  ];
+  h += `<section class="quick-actions" aria-label="Quick actions"><div class="quick-actions-heading"><div><p class="eyebrow"><span class="eyebrow-dot"></span> Get things done</p><h2>Quick actions</h2><p>Common forms and requests are one tap away.</p></div></div><div class="quick-actions-grid">${quickActions.map(([title, href, description, icon]) => `<a class="quick-action-card" href="${href}"><span class="quick-action-icon" aria-hidden="true">${icon}</span><span class="quick-action-copy"><b>${esc(title)}</b><small>${esc(description)}</small></span><span class="quick-action-arrow" aria-hidden="true">→</span></a>`).join("")}</div></section>`;
   const get = async (p) => { try { return arr(await api(p)); } catch { return []; } };
   if (!staff) {
     const [tok, ten, tk, vw] = await Promise.all([get("tokens/mine"), get("tenancies/mine"), get("tickets/mine"), get("viewings/mine")]);
     h += section("Payment tokens", tok, (t) => `<div class="card"><a href="#/token/${esc(t.id)}"><b>${esc(t.code || t.status)}</b></a> <span class="tag">${esc(humanize(t.status || ""))}</span>${kv(t)}<div class="row">${t.status === "ACTIVE" ? btn("claim", t.id, "I have paid") : ""}${["REQUESTED", "ACTIVE"].includes(t.status) ? btn("tcancel", t.id, "Cancel", "g") : ""}</div></div>`);
-    h += section("My tenancy", ten, (t) => `<div class="card">${kv(t)}<div class="row">${btn("movein", t.id, "Confirm move-in")}${btn("renewreq", t.id, "Request renewal", "g")}<a class="button button-secondary" href="#/review/${esc(t.unitId || t.unit?.id || "")}">Leave a review</a>${btn("issue", t.unitId || t.unit?.id || "", "Report an issue", "g")}${btn("dl", "tenancies/" + t.id + "/agreement", "Download agreement", "g")}</div></div>`);
+    h += section("My tenancy", ten, (t) => `<div class="card">${kv(t)}<div class="row">${btn("movein", t.id, "Confirm move-in")}${btn("renewreq", t.id, "Request renewal", "g")}<a class="button button-secondary" href="#/review/${esc(t.unitId || t.unit?.id || "")}">Leave a review</a>${(t.unitId || t.unit?.id) ? `<a class="button button-secondary" href="#/ticket/new?unitId=${esc(t.unitId || t.unit.id)}">Raise a ticket</a>` : ""}${btn("dl", "tenancies/" + t.id + "/agreement", "Download agreement", "g")}</div></div>`);
     h += section("Viewings", vw, (v) => `<div class="card">${kv(v)}<div class="row">${v.status === "RESCHEDULED" ? btn("vact", v.id, "Accept new time", "", "accept") : ""}${btn("vact", v.id, "Cancel viewing", "g", "cancel")}</div></div>`);
     h += section("Maintenance tickets", tk, (t) => `<div class="card"><a href="#/ticket/${esc(t.id)}"><b>${esc(t.title)}</b></a> <span class="tag">${esc(humanize(t.status || ""))}</span>${kv(t)}<div class="row">${t.status === "RESOLVED" ? btn("tconfirm", t.id, "Confirm fixed") + btn("treopen", t.id, "Reopen", "g") : ""}</div></div>`);
     h += section("Enquiries", d.enquiries || [], (e) => `<a class="card" href="#/chat/${esc(e.id)}"><b>${esc(e.unit?.title || e.title || "Conversation")}</b><span class="muted">Open conversation →</span></a>`);

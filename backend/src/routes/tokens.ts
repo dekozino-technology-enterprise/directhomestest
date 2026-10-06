@@ -55,12 +55,11 @@ async function staffView(t: any, userId: string) {
 }
 const tokenInclude = { unit: true, tenant: { select: { id: true, fullName: true, phone: true } } } as const;
 
-// ───── Tenant: request a token (needs an account, a verified phone, and a live unit) ─────
+// ───── Tenant: request a token (needs an account and a live unit) ─────
 r.post("/request", requireRole("TENANT"), rateLimit({ windowMs: HOUR, max: 10 }), async (req, res) => {
   const p = z.object({ unitId: z.string(), moveInDate: z.string().datetime().optional(), note: z.string().max(300).optional() }).safeParse(req.body);
   if (!p.success) return res.status(400).json(p.error.flatten());
   const user = await prisma.user.findUnique({ where: { id: me(req) } });
-  if (!user!.phoneVerified) return res.status(403).json({ error: "Verify your phone number first" });
   const unit = await prisma.unit.findFirst({ where: { id: p.data.unitId, status: "AVAILABLE", AND: liveConds() } });
   if (!unit || unit.rentKobo <= 0) return res.status(404).json({ error: "This listing is no longer available" });
   const moveIn = p.data.moveInDate ? new Date(p.data.moveInDate) : undefined;

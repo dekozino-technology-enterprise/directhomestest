@@ -70,9 +70,9 @@ function nav() {
       items += label("Admin workspace") + NAV_TABS.map(([key, title]) => link("a/" + key, title)).join("");
     } else {
       items += label("Workspace") + link("dash", "Overview");
-      if (role === "TENANT") items += link("news", "Notices");
+      if (role === "TENANT") items += link("tickets", "Maintenance") + link("news", "Notices");
       if (role === "OWNER" || role === "MANAGER") {
-        items += link("onboard", "Get verified");
+        items += link("onboard", "Get verified") + link("tickets", "Maintenance");
         if (role === "OWNER") items += link("pnew", "Add property");
         items += link("unitnew", "Add a unit") + link("announce", "Notices");
         if (role === "OWNER") items += link("insights", "Reports");

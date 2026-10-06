@@ -55,8 +55,8 @@ r.post("/kyc", requireRole("OWNER", "MANAGER"), async (req, res) => {
   const p = kycSchema.safeParse(req.body);
   if (!p.success) return res.status(400).json(p.error.flatten());
   const d = p.data, me = await prisma.user.findUnique({ where: { id: req.user!.id } });
-  // Email verification is optional until a sending domain is set up: set REQUIRE_EMAIL_VERIFY=true to enforce it.
-  if ((process.env.REQUIRE_EMAIL_VERIFY === "true" && !me!.emailVerified) || !me!.phoneVerified) return res.status(400).json({ error: process.env.REQUIRE_EMAIL_VERIFY === "true" ? "Verify your email and phone first" : "Verify your phone first" });
+  // Phone verification is currently disabled; email verification remains optional until a sending domain is set up.
+  if (process.env.REQUIRE_EMAIL_VERIFY === "true" && !me!.emailVerified) return res.status(400).json({ error: "Verify your email first" });
   // files must be the user's own uploads
   if (![d.idDocumentKey, d.selfieKey].every((k) => k.startsWith(me!.id + "-") && /^[\w-]+\.\w+$/.test(k)))
     return res.status(400).json({ error: "Invalid file reference" });
