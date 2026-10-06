@@ -99,7 +99,7 @@ EXTRA.home = () => {
       <div class="hero-proof"><span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m4 10 4 4 8-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Verified owners</span><span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m4 10 4 4 8-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Free viewings</span><span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m4 10 4 4 8-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Clear pricing</span></div>
     </div>
     <div class="hero-visual" aria-label="A welcoming modern home surrounded by greenery">
-      <img class="hero-photo" src="assets/hero-residence.jpg" alt="Modern home with warm natural light and tropical landscaping" fetchpriority="high">
+      <picture class="hero-picture"><source srcset="assets/hero-residence.webp" type="image/webp"><img class="hero-photo" src="assets/hero-residence.jpg" width="1280" height="853" alt="Modern home with warm natural light and tropical landscaping" fetchpriority="high" decoding="async"></picture>
       <div class="hero-badge"><span class="hero-badge-mark">✓</span><span><strong>Owner-direct</strong><br>Rent with more confidence</span></div>
       <div class="hero-photo-caption"><span>A place to feel at home.</span><span>Direct Homes · Nigeria</span></div>
     </div>
@@ -118,7 +118,7 @@ EXTRA.privacy = () => legal("Privacy notice (NDPA)", "<p>We collect your name, c
 // ---------- verification and onboarding ----------
 EXTRA.verify = () => { app.innerHTML = `<section class="page-heading"><div><p class="eyebrow"><span class="eyebrow-dot"></span> Phone verification</p><h1>SMS codes are paused.</h1><p>You can keep using Direct Homes without a phone verification code for now.</p></div></section>${phoneStatusNotice()}<div class="row"><a class="button" href="#/dash">Back to your dashboard</a></div>`; };
 EXTRA.onboard = async () => {
-  const k = await api("verify/kyc/status").catch(() => ({})), acc = await api("accounts").then(arr).catch(() => []);
+  const [k, acc] = await Promise.all([api("verify/kyc/status").catch(() => ({})), api("accounts").then(arr).catch(() => [])]);
   app.innerHTML = `<h2>Get verified</h2>${phoneStatusNotice()}
   <div class="card"><h3>Identity (KYC)</h3>${kv(k)}<form data-form="kyc" class="col">${L("ID type", `<select name="idType">${opts([["NIN", "NIN"], ["PASSPORT", "Passport"], ["DRIVERS_LICENCE", "Driver's licence"], ["VOTERS_CARD", "Voter's card"]])}</select>`)}${inp("idNumber", "ID number")}${inp("bankAccountName", "Name on your bank account (must match your ID)")}${inp("idDoc", "Photo of your ID", "file", 'accept="image/*,.pdf" required')}${inp("selfie", "Selfie holding your ID", "file", 'accept="image/*" required')}<button>Submit for review</button></form></div>
   <div class="card"><h3>Bank account for receiving rent</h3>${acc.map((a) => kv(a)).join("<hr>")}<form data-form="acct" class="col">${inp("bankName", "Bank")}${inp("accountName", "Account name")}${inp("accountNumber", "10-digit account number", "text", 'pattern="\\d{10}"')}<button>Save account</button></form><p class="muted">Needs an approved KYC. The name must match your verified name.</p></div>`;

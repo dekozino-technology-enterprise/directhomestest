@@ -2,7 +2,7 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { encrypt } from "../lib/crypto";
+import { encrypt, isEncryptionKeyConfigured } from "../lib/crypto";
 import { hashValue } from "../lib/hash";
 import { accountNameMatches } from "../lib/nameMatch";
 import { audit } from "../lib/audit";
@@ -26,6 +26,7 @@ r.post("/", rateLimit({ windowMs: 3600_000, max: 10 }), async (req, res) => {
   if (!p.success) return res.status(400).json(p.error.flatten());
   const d = p.data, me = await prisma.user.findUnique({ where: { id: req.user!.id }, include: { kyc: { select: { status: true } } } });
   if (me!.kyc?.status !== "VERIFIED") return res.status(403).json({ error: "Complete identity verification before adding an account" });
+  if (!isEncryptionKeyConfigured()) return res.status(503).json({ error: "Receiving-account encryption is not configured. Ask the site administrator to set DATA_ENC_KEY to exactly 64 hexadecimal characters in the API service environment." });
   if ((await prisma.receivingAccount.count({ where: { userId: me!.id, active: true } })) >= 5) return res.status(400).json({ error: "You can keep up to 5 accounts" });
 
   const numberHash = hashValue(d.bankName.toLowerCase().replace(/\s+/g, "") + d.accountNumber);

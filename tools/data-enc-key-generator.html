@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Direct Homes — local encryption-key generator</title>
+  <style>
+    :root{color-scheme:light;--ink:#1d3028;--forest:#285846;--muted:#617067;--line:#dbe3d8;--paper:#f4f6f1;--white:#fffefa}
+    *{box-sizing:border-box}body{margin:0;padding:28px;font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:var(--paper)}main{max-width:680px;margin:6vh auto;padding:clamp(22px,5vw,42px);border:1px solid var(--line);border-radius:20px;background:var(--white);box-shadow:0 14px 50px #1d302812}h1{margin:0 0 8px;font-size:clamp(25px,5vw,34px);letter-spacing:-.04em}p{color:var(--muted)}.notice{border-left:4px solid var(--forest);padding:12px 15px;background:#eef4ec;font-size:14px}.actions{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 15px}button{border:1px solid var(--forest);border-radius:10px;padding:11px 16px;color:white;background:var(--forest);font:inherit;font-size:14px;font-weight:700;cursor:pointer}button.secondary{color:var(--forest);background:white}button:disabled{opacity:.45;cursor:not-allowed}label{display:block;margin:18px 0 6px;font-size:13px;font-weight:700}input{width:100%;border:1px solid var(--line);border-radius:10px;padding:13px;color:var(--ink);background:white;font:14px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace}#status{min-height:24px;font-size:13px}@media(max-width:480px){body{padding:14px}.actions{flex-direction:column}button{width:100%}}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Generate a server encryption key</h1>
+    <p>This page creates one random 32-byte key (64 hexadecimal characters) in your browser.</p>
+    <p class="notice"><strong>Private and offline:</strong> this file has no external scripts and does not send or save the key. Copy it directly into the Render API service environment. Do not paste it into chat, Netlify, source code, or a public document.</p>
+    <div class="actions">
+      <button id="generate" type="button">Generate key</button>
+      <button id="copy" class="secondary" type="button" disabled>Copy key</button>
+    </div>
+    <label for="key">DATA_ENC_KEY</label>
+    <input id="key" type="text" readonly autocomplete="off" spellcheck="false" aria-describedby="status">
+    <p id="status" role="status" aria-live="polite">No key generated yet.</p>
+    <p><strong>Important:</strong> generate only if Render has no existing valid key. Back up the key in your password manager. Changing or losing it later can make previously saved bank account numbers unreadable.</p>
+  </main>
+  <script>
+    const field = document.getElementById("key");
+    const status = document.getElementById("status");
+    document.getElementById("generate").addEventListener("click", () => {
+      const bytes = new Uint8Array(32);
+      crypto.getRandomValues(bytes);
+      field.value = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+      document.getElementById("copy").disabled = false;
+      status.textContent = "Key generated locally. Copy it to Render, then save a backup securely.";
+    });
+    document.getElementById("copy").addEventListener("click", async () => {
+      if (!field.value) return;
+      try {
+        await navigator.clipboard.writeText(field.value);
+        status.textContent = "Copied. Paste directly into Render's DATA_ENC_KEY value.";
+      } catch {
+        field.focus();
+        field.select();
+        status.textContent = "Clipboard access was blocked. The key is selected; copy it manually.";
+      }
+    });
+  </script>
+</body>
+</html>

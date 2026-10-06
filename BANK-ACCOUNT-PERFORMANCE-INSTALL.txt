@@ -1,0 +1,30 @@
+Direct Homes — receiving-bank-account diagnostics + speed update
+
+This bundle combines the earlier dashboard/ticket UI refresh and narrowly scoped phone-gate removals with the new bank-account configuration guard and frontend performance improvements. Apply it to the same repository/branch connected to Netlify and Render. It does not require a new Supabase project, a paid Render plan, Paystack, or new credentials in chat.
+
+GUI install
+1. Extract this ZIP using your file manager.
+2. Copy the included files into the same paths in your repository, replacing matching files. Keep the folder paths intact. Add `frontend/assets/hero-residence.webp` and `tools/data-enc-key-generator.html`; keep the existing `frontend/assets/hero-residence.jpg` as a fallback.
+3. Do not replace `frontend/config.js`, `frontend/netlify.toml`, or any `.env` file. The included `backend/.env.example` is only a template; it contains no real credentials.
+4. Commit/push the changes to the connected Git branch. Wait for Netlify and the Render API service to finish deploying.
+5. In Render, open the API web service (normally `house-mgmt-api`) → Environment. Check `DATA_ENC_KEY`:
+   - If there is already a valid 64-character hexadecimal value, keep it unchanged.
+   - If it is missing and no valid key has ever been used, open `tools/data-enc-key-generator.html` in a browser, click “Generate key”, and copy the value directly into Render's `DATA_ENC_KEY` environment variable. Save it in a password manager as a backup, then save the Render environment change and let Render redeploy.
+   - Do not put the key in Netlify, Git, source files, screenshots, or chat. Do not replace a key if bank-account records may already have been encrypted with it. Losing or changing the key can make those saved account numbers unreadable.
+6. Test bank-account entry with an OWNER or MANAGER whose KYC status is `VERIFIED`, using a bank name, account name, and Nigerian 10-digit account number. The backend's existing role, KYC, duplicate-account, account-name review, and other safeguards remain in place.
+
+What changed
+- The account API now validates `DATA_ENC_KEY` strictly (exactly 64 hexadecimal characters) and returns a safe, actionable HTTP 503 message instead of the generic “Server error” when the key is absent/malformed. The key itself is never returned or logged by this check. This does not set a Render secret for you; the Render GUI step above is still required.
+- The homepage hero image has a 1280×853 WebP version at about 175 KB, down from about 400 KB for the JPEG (about 56% smaller). The JPEG remains as a browser fallback. The sign-in background also prefers WebP where supported.
+- Dashboard data calls and the onboarding KYC/account lookups now run in parallel instead of waiting through sequential network round trips; offscreen listing images decode asynchronously.
+- The earlier dashboard/ticket refresh and the specifically authorized removal of phone-verification gates for KYC submission and tenant payment-token requests are preserved. Other authentication, role, KYC-review, and business rules remain.
+
+Why it may still feel slow
+Render's Free API service sleeps after inactivity and can take about a minute to wake; the first API-backed screen or action can still wait for that cold start. The image and request changes reduce normal loading time, but frontend code cannot keep a sleeping server awake. No paid-plan change is required for this test setup.
+
+If the account form still fails
+- A 403 means the signed-in owner/manager needs approved KYC first.
+- The new 503 message points to the server-side `DATA_ENC_KEY` setting. Do not share the key with support or paste it here.
+- If the key is valid and the API still returns “Server error,” check the Render service Logs around the failed request. Share only the redacted error text/status, never secrets, account numbers, access tokens, or identity documents.
+
+Validation performed on the included source: frontend JavaScript syntax checks, backend TypeScript build, CSS checks, and ZIP integrity checks. A live production account submission and backend database E2E were not run here because Render credentials and a disposable test database are not available.

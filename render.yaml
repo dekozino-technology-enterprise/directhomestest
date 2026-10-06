@@ -17,7 +17,7 @@ services:
       - { key: JWT_ACCESS_SECRET, generateValue: true }
       - { key: JWT_REFRESH_SECRET, generateValue: true }
       - { key: HASH_PEPPER, generateValue: true }
-      - { key: DATA_ENC_KEY, sync: false }   # openssl rand -hex 32; back it up
+      - { key: DATA_ENC_KEY, sync: false }   # exactly 64 hex chars; generate locally; back up and do not rotate
       - { key: DATABASE_URL, sync: false }   # Supabase Transaction pooler URL
       - { key: DIRECT_URL, sync: false }     # Supabase Session pooler URL
       - { key: ADMIN_EMAIL, sync: false }

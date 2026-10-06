@@ -50,7 +50,7 @@ async function unitPage({ pid, id }) {
     const ps = (await api("properties/mine").then(arr)).filter((p) => p.status !== "REJECTED");
     app.innerHTML = `<h2>Add a unit</h2>${ps.length ? `<form data-form="upick" class="col card">${L("Which property?", `<select name="pid">${opts(ps.map((p) => [p.id, `${p.name} (${p.status})`]))}</select>`)}<button>Continue</button></form>` : "<p>You have no property yet. Owners add one first; managers are assigned by the owner.</p>"}`; return;
   }
-  const m = await api("public/meta"); UORIG = id ? await api("units/" + id) : null; const u = UORIG || {}, n = (k, d = 0) => esc(u[k] ?? d);
+  const [m, original] = await Promise.all([api("public/meta"), id ? api("units/" + id) : Promise.resolve(null)]); UORIG = original; const u = UORIG || {}, n = (k, d = 0) => esc(u[k] ?? d);
   app.innerHTML = `<h2>${id ? "Edit unit" : "Add a unit"}</h2><form data-form="unit" class="col card"><input type="hidden" name="uid" value="${esc(id || "")}"><input type="hidden" name="propertyId" value="${esc(pid || u.propertyId)}">
   ${L("Type", `<select name="unitTypeId">${opts(m.unitTypes.map((t) => [t.id, t.name]))}</select>`)}${inp("title", "Title", "text", `value="${esc(u.title || "")}" required`)}${L("Description", `<textarea name="description">${esc(u.description || "")}</textarea>`)}
   ${inp("rentNaira", "Rent (₦)", "number", `min="0" required value="${n("rentNaira")}"`)}${inp("cautionNaira", "Caution fee (₦)", "number", `min="0" value="${n("cautionNaira")}"`)}${inp("serviceChargeNaira", "Service charge (₦)", "number", `min="0" value="${n("serviceChargeNaira")}"`)}

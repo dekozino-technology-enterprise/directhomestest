@@ -1,11 +1,13 @@
 import crypto from "crypto";
 
-// AES-256-GCM for bank account numbers. Key: 64 hex chars in DATA_ENC_KEY (generate with: openssl rand -hex 32).
-// Losing this key makes stored account numbers unreadable, so back it up with your other secrets.
+// AES-256-GCM for bank account numbers. Key: exactly 64 hex characters in DATA_ENC_KEY.
+// Losing or changing this key makes stored account numbers unreadable, so back it up with your other secrets.
+export function isEncryptionKeyConfigured() {
+  return /^[0-9a-fA-F]{64}$/.test(process.env.DATA_ENC_KEY ?? "");
+}
 function key() {
-  const k = Buffer.from(process.env.DATA_ENC_KEY ?? "", "hex");
-  if (k.length !== 32) throw new Error("DATA_ENC_KEY must be 64 hex characters (openssl rand -hex 32)");
-  return k;
+  if (!isEncryptionKeyConfigured()) throw new Error("DATA_ENC_KEY must be exactly 64 hex characters");
+  return Buffer.from(process.env.DATA_ENC_KEY!, "hex");
 }
 export function encrypt(plain: string) {
   const iv = crypto.randomBytes(12), c = crypto.createCipheriv("aes-256-gcm", key(), iv);

@@ -12,7 +12,7 @@ const mediaUrl = (raw) => {
 const img = (u = {}) => {
   const raw = u.image || u.photo || u.cover || (u.images && u.images[0]) || u.thumbnail;
   const src = mediaUrl(raw);
-  return src ? `<img class="listing-image" loading="lazy" src="${esc(src)}" alt="${esc(u.title || "Home listing")}">` : `<div class="photo-placeholder" aria-label="No property photo"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="m7 22 17-14 17 14v17a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V22Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M19 41V26h10v15M4 22 24 5l20 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
+  return src ? `<img class="listing-image" loading="lazy" decoding="async" src="${esc(src)}" alt="${esc(u.title || "Home listing")}">` : `<div class="photo-placeholder" aria-label="No property photo"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="m7 22 17-14 17 14v17a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V22Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M19 41V26h10v15M4 22 24 5l20 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
 };
 const prices = (u = {}) => Object.entries(u).filter(([k, v]) => /rent|total|caution|service/i.test(k) && typeof v === "number").map(([k, v]) => `<span class="price-line"><span>${esc(humanize(k))}</span><b>${naira(/Kobo$/i.test(k) ? v / 100 : v)}</b></span>`).join("");
 const kv = (o = {}) => Object.entries(o || {}).filter(([k, v]) => v !== null && typeof v !== "object" && !/^id$|Id$|password/i.test(k)).map(([k, v]) => `<div class="kv-row"><span>${esc(humanize(k))}</span><b>${esc(typeof v === "boolean" ? (v ? "Yes" : "No") : v)}</b></div>`).join("");
@@ -142,7 +142,11 @@ async function dash() {
   const pageVersion = activeRouteVersion;
   const u = user(); if (!u) return (location.hash = "#/login");
   if (u.role === "ADMIN") return (location.hash = "#/a/overview");
-  const staff = u.role !== "TENANT", d = await api("dashboard/" + (staff ? "staff" : "tenant"));
+  const staff = u.role !== "TENANT";
+  const get = async (p) => { try { return arr(await api(p)); } catch { return []; } };
+  let d, tok, ten, tk, vw, inc, props, units;
+  if (!staff) [d, tok, ten, tk, vw] = await Promise.all([api("dashboard/tenant"), get("tokens/mine"), get("tenancies/mine"), get("tickets/mine"), get("viewings/mine")]);
+  else [d, inc, tk, props, units, vw] = await Promise.all([api("dashboard/staff"), get("tokens/incoming"), get("tickets/staff"), get("properties/mine"), get("units/mine"), get("viewings/mine")]);
   if (pageVersion !== activeRouteVersion) return;
   const stats = Object.entries(d || {}).filter(([, v]) => typeof v === "number").map(([k, v]) => `<div class="stat-card"><strong>${esc(v)}</strong><span>${esc(humanize(k))}</span></div>`).join("");
   const firstName = String(u.fullName || "there").trim().split(/\s+/)[0];
@@ -160,9 +164,7 @@ async function dash() {
     ["Notices", "#/news", "Read property updates", "↗"],
   ];
   h += `<section class="quick-actions" aria-label="Quick actions"><div class="quick-actions-heading"><div><p class="eyebrow"><span class="eyebrow-dot"></span> Get things done</p><h2>Quick actions</h2><p>Common forms and requests are one tap away.</p></div></div><div class="quick-actions-grid">${quickActions.map(([title, href, description, icon]) => `<a class="quick-action-card" href="${href}"><span class="quick-action-icon" aria-hidden="true">${icon}</span><span class="quick-action-copy"><b>${esc(title)}</b><small>${esc(description)}</small></span><span class="quick-action-arrow" aria-hidden="true">→</span></a>`).join("")}</div></section>`;
-  const get = async (p) => { try { return arr(await api(p)); } catch { return []; } };
   if (!staff) {
-    const [tok, ten, tk, vw] = await Promise.all([get("tokens/mine"), get("tenancies/mine"), get("tickets/mine"), get("viewings/mine")]);
     h += section("Payment tokens", tok, (t) => `<div class="card"><a href="#/token/${esc(t.id)}"><b>${esc(t.code || t.status)}</b></a> <span class="tag">${esc(humanize(t.status || ""))}</span>${kv(t)}<div class="row">${t.status === "ACTIVE" ? btn("claim", t.id, "I have paid") : ""}${["REQUESTED", "ACTIVE"].includes(t.status) ? btn("tcancel", t.id, "Cancel", "g") : ""}</div></div>`);
     h += section("My tenancy", ten, (t) => `<div class="card">${kv(t)}<div class="row">${btn("movein", t.id, "Confirm move-in")}${btn("renewreq", t.id, "Request renewal", "g")}<a class="button button-secondary" href="#/review/${esc(t.unitId || t.unit?.id || "")}">Leave a review</a>${(t.unitId || t.unit?.id) ? `<a class="button button-secondary" href="#/ticket/new?unitId=${esc(t.unitId || t.unit.id)}">Raise a ticket</a>` : ""}${btn("dl", "tenancies/" + t.id + "/agreement", "Download agreement", "g")}</div></div>`);
     h += section("Viewings", vw, (v) => `<div class="card">${kv(v)}<div class="row">${v.status === "RESCHEDULED" ? btn("vact", v.id, "Accept new time", "", "accept") : ""}${btn("vact", v.id, "Cancel viewing", "g", "cancel")}</div></div>`);
@@ -170,7 +172,6 @@ async function dash() {
     h += section("Enquiries", d.enquiries || [], (e) => `<a class="card" href="#/chat/${esc(e.id)}"><b>${esc(e.unit?.title || e.title || "Conversation")}</b><span class="muted">Open conversation →</span></a>`);
     h += section("Saved homes", d.favourites || [], (f) => { const x = f.unit || f; return `<a class="card" href="#/unit/${esc(x.id)}">${img(x)}<b>${esc(x.title || "Saved home")}</b></a>`; });
   } else {
-    const [inc, tk, props, units, vw] = await Promise.all([get("tokens/incoming"), get("tickets/staff"), get("properties/mine"), get("units/mine"), get("viewings/mine")]);
     h += section("Payment requests", inc, (t) => `<div class="card"><b>${esc(t.code || "Payment request")}</b> <span class="tag">${esc(humanize(t.status || ""))}</span>${kv(t)}<div class="row">${t.status === "REQUESTED" ? btn("approve", t.id, "Review & approve") + btn("reject", t.id, "Reject", "r") : ""}${t.status === "PAYMENT_CLAIMED" ? btn("confirmpay", t.id, "Confirm money received") + btn("notrec", t.id, "Not received", "r") : ""}</div></div>`);
     h += section("Viewing requests", vw, (v) => `<div class="card">${kv(v)}<div class="row">${v.status === "REQUESTED" ? btn("vact", v.id, "Confirm viewing") : ""}${v.status === "CONFIRMED" ? btn("vact", v.id, "Mark complete", "g", "complete") : ""}${btn("vact", v.id, "Cancel", "g", "cancel")}</div></div>`);
     h += section("Maintenance", tk, (t) => `<div class="card"><a href="#/ticket/${esc(t.id)}"><b>${esc(t.title)}</b></a> <span class="tag">${esc(humanize(t.status || ""))}</span> <span class="tag">${esc(humanize(t.urgency || ""))}</span><div class="row">${["ACKNOWLEDGED", "IN_PROGRESS", "RESOLVED"].map((s) => btn("tstat", t.id, humanize(s), "g", s)).join("")}</div></div>`);
