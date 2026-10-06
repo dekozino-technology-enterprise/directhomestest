@@ -16,7 +16,7 @@ const title = (r) => r.user?.fullName || r.owner?.fullName || r.fullName || r.na
 const link = (h, r) => `<a href="#/a/${h}/${esc(r.id)}"><b>${esc(title(r) || r.id)}</b></a>`;
 const chk = (id, t) => `<label><input type="checkbox" id="${id}" style="flex:none"> ${t}</label>`;
 const decRow = (a, id, ds) => `<div class="row">${ds.map(([d, t, c]) => btn(a, id, t, c || "", d)).join("")}</div>`;
-const notes = '<label>Notes<textarea id="notes"></textarea></label>';
+const adminNotesHtml = '<label>Notes<textarea id="notes"></textarea></label>';
 const queue = (path, acts) => async () => grid(list(await api(path)), (r) => `<div class="card">${kv(r)}<div class="row">${acts(r)}</div></div>`);
 const crud = (path, cols) => async () => {
   const rows = list(await api("admin/" + path));
