@@ -20,13 +20,25 @@ const logout = () => { localStorage.clear(); location.hash = "#/login"; nav(); }
 
 async function api(p, o = {}) {
   const go = () => fetch(API + "/api/" + p, { method: o.method || (o.body || o.form ? "POST" : "GET"), headers: { ...(o.form ? {} : { "Content-Type": "application/json" }), ...(localStorage.at ? { Authorization: "Bearer " + localStorage.at } : {}) }, body: o.form || (o.body ? JSON.stringify(o.body) : undefined) });
-  let r = await go();
+  let r;
+  try { r = await go(); } catch { throw new Error("Could not reach Direct Homes. Check your connection and try again."); }
   if (r.status === 401 && localStorage.rt) {
-    const rr = await fetch(API + "/api/auth/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refreshToken: localStorage.rt }) });
-    if (rr.ok) { localStorage.at = (await rr.json()).accessToken; r = await go(); } else { logout(); throw new Error("Please sign in again"); }
+    let rr;
+    try { rr = await fetch(API + "/api/auth/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refreshToken: localStorage.rt }) }); }
+    catch { logout(); throw new Error("Your session could not be refreshed. Please sign in again."); }
+    if (rr.ok) {
+      localStorage.at = (await rr.json()).accessToken;
+      try { r = await go(); } catch { throw new Error("Could not reach Direct Homes. Check your connection and try again."); }
+    } else { logout(); throw new Error("Your session has expired. Please sign in again."); }
   }
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.error || (d.fieldErrors ? Object.values(d.fieldErrors).flat().join(", ") : "Something went wrong"));
+  const d = await r.json().catch(() => null);
+  if (!r.ok) {
+    const fields = d?.fieldErrors || d?.errors?.fieldErrors;
+    const fieldMessage = fields ? Object.entries(fields).map(([key, messages]) => `${humanize(key)}: ${Array.isArray(messages) ? messages.join(", ") : messages}`).join("; ") : "";
+    const formMessage = d?.errors?.formErrors?.join("; ") || d?.formErrors?.join("; ") || "";
+    const fallback = r.status === 404 ? "This API route was not found. Please confirm the frontend API proxy is configured." : r.status >= 500 ? `The server could not complete this request (${r.status}). Please try again shortly.` : `Please check the information and try again (${r.status}).`;
+    throw new Error(d?.error || fieldMessage || formMessage || fallback);
+  }
   return d;
 }
 
@@ -98,7 +110,7 @@ function authForm(reg) {
     <div class="auth-aside"><p class="eyebrow">Direct Homes · Nigeria</p><h2>${reg ? "A better way to find your place." : "Welcome back home."}</h2><p>Connect with verified owners and make your next move with clarity and confidence.</p></div>
     <div class="auth-panel"><p class="eyebrow"><span class="eyebrow-dot"></span> ${reg ? "Join the community" : "Your account"}</p><h1>${reg ? "Create your account" : "Sign in"}</h1><p>${reg ? "Get started with a free Direct Homes account." : "Sign in to manage your home, messages and requests."}</p>
       <form id="af" class="auth-form">
-        ${reg ? `<label for="auth-role">I am a<select id="auth-role" name="role"><option value="TENANT">Tenant looking for a home</option><option value="OWNER">Property owner</option><option value="MANAGER">Property manager</option></select></label><label for="auth-name">Full name<input id="auth-name" name="fullName" autocomplete="name" placeholder="Your full name" required></label><label for="auth-phone">Phone number<input id="auth-phone" name="phone" autocomplete="tel" placeholder="e.g. 08012345678" required></label>` : ""}
+        ${reg ? `<label for="auth-role">I am a<select id="auth-role" name="role"><option value="TENANT">Tenant looking for a home</option><option value="OWNER">Property owner</option><option value="MANAGER">Property manager</option></select></label><label for="auth-name">Full name<input id="auth-name" name="fullName" autocomplete="name" placeholder="Your full name" required></label><label for="auth-phone">Phone number<input id="auth-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="e.g. 08012345678" pattern="(\\+234|0)[789][01][0-9]{8}" title="Use a Nigerian mobile number, e.g. 08012345678 or +2348012345678" required><span class="form-note">Use a Nigerian mobile number, such as 08012345678 or +2348012345678.</span></label>` : ""}
         <label for="auth-email">Email address<input id="auth-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label>
         <label for="auth-password">Password<input id="auth-password" name="password" type="password" autocomplete="${reg ? "new-password" : "current-password"}" placeholder="${reg ? "At least 8 characters" : "Your password"}" minlength="8" required></label>
         <button type="submit">${reg ? "Create account" : "Sign in securely"}<span aria-hidden="true">→</span></button>
