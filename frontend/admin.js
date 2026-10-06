@@ -1,15 +1,17 @@
 // Single admin place: everything the old /admin console did, plus tickets, reports, reviews, disputes, analytics
 const LEVELS = ["STATE", "LGA", "CITY", "AREA"], qs = () => new URLSearchParams(location.hash.split("?")[1] || "");
 const list = (d) => (Array.isArray(d) ? d : Object.values(d || {}).find(Array.isArray) || []);
-const grid = (rows, fn) => `<div class="grid">${rows.map(fn).join("") || "<p class='muted'>Nothing here.</p>"}</div>`;
+const grid = (rows, fn) => `<div class="grid">${rows.map(fn).join("") || `<div class="empty-state">Nothing needs attention here right now.</div>`}</div>`;
 const files = (o) => [...new Set((JSON.stringify(o).match(/[\w-]+\.(?:jpg|png|webp|pdf)/g) || []))];
 const fbox = (k) => `<div class="card"><span class="muted">${esc(k)}</span><div data-file="${esc(k)}">Loading…</div></div>`;
 async function loadFiles() {
   for (const box of document.querySelectorAll("[data-file]")) {
-    const r = await fetch(API + "/api/admin/files/" + box.dataset.file, { headers: { Authorization: "Bearer " + localStorage.at } });
-    if (!r.ok) { box.textContent = "Unavailable"; continue; }
-    const b = await r.blob(), u = URL.createObjectURL(b);
-    box.innerHTML = b.type.startsWith("image") ? `<img src="${u}" style="max-width:100%;border-radius:8px">` : `<a href="${u}" target="_blank">Open file</a>`;
+    try {
+      const r = await fetch(API + "/api/admin/files/" + box.dataset.file, { headers: { Authorization: "Bearer " + localStorage.at } });
+      if (!r.ok) { box.textContent = "This file is unavailable."; continue; }
+      const blob = await r.blob(), url = URL.createObjectURL(blob);
+      box.innerHTML = blob.type.startsWith("image") ? `<img src="${url}" alt="Uploaded document" style="max-width:100%;border-radius:10px">` : `<a href="${url}" target="_blank" rel="noopener">Open document</a>`;
+    } catch { box.textContent = "This file could not be loaded."; }
   }
 }
 const title = (r) => r.user?.fullName || r.owner?.fullName || r.fullName || r.name || r.title || r.code || r.action || "";
@@ -23,12 +25,15 @@ const crud = (path, cols) => async () => {
   return `<div class="row">${btn("addres", path, "Add new")}</div>` + grid(rows, (r) => `<div class="card"><b>${esc(r.name)}</b> <span class="tag">${r.active ? "active" : "disabled"}</span>${kv(r)}<div class="row">${btn("atoggle", r.id, r.active ? "Disable" : "Enable", "g", path + "|" + r.active)}${path === "fee-tiers" ? btn("tieramt", r.id, "Edit price", "g") : ""}</div></div>`);
 };
 const ADM = {
-  overview: async () => `<div class="card">${deep(await api("admin/stats"))}</div>`,
-  analytics: async () => `<div class="card">${deep(await api("admin/analytics/overview"))}</div><div class="row">${["onboarding", "rent", "tickets", "users"].map((x) => btn("dl", `admin/export/${x}.csv`, x + ".csv", "g")).join("")}</div>`,
+  overview: async () => {
+    const d = await api("admin/stats"), labels = { owners: "Owners", managers: "Managers", tenants: "Tenants", pendingKyc: "Pending verification", suspended: "Restricted accounts", pendingProperties: "Properties to review" };
+    return `<div class="admin-stat-grid">${Object.entries(labels).map(([key, label]) => `<div class="stat-card"><strong>${esc(d[key] ?? 0)}</strong><span class="admin-stat-label">${esc(label)}</span></div>`).join("")}</div><div class="admin-callout"><div><b>Review the queues that need your attention.</b><p>Check owner verification and property submissions before they go live.</p></div><a class="button button-secondary" href="#/a/kyc">Open verification queue <span aria-hidden="true">→</span></a></div>`;
+  },
+  analytics: async () => `<div class="card"><p class="eyebrow">Platform activity</p><h3>Analytics overview</h3>${deep(await api("admin/analytics/overview"))}</div><div class="row">${["onboarding", "rent", "tickets", "users"].map((x) => btn("dl", `admin/export/${x}.csv`, `Download ${x} CSV`, "g")).join("")}</div>`,
   async kyc(id) {
     if (!id) return grid(list(await api("admin/kyc?status=" + (qs().get("status") || "PENDING"))), (r) => `<div class="card">${link("kyc", r)}${kv(r)}</div>`);
     const d = await api("admin/kyc/" + id);
-    return `<p><a href="#/a/kyc">← Back to queue</a></p><div class="card">${deep(d)}</div><div class="grid">${files(d).map(fbox).join("")}</div><div class="card"><h3>Decision</h3>${chk("c1", "Name matches ID")}${chk("c2", "Selfie matches ID photo")}${chk("c3", "Document looks genuine")}${chk("bl", "Blacklist this ID, phone and bank account (fraud)")}${notes}${decRow("kycdec", id, [["APPROVED", "Approve"], ["NEEDS_INFO", "Need more info", "g"], ["REJECTED", "Reject", "r"]])}</div>`;
+    return `<p><a href="#/a/kyc">← Back to queue</a></p><div class="card">${deep(d)}</div><div class="grid">${files(d).map(fbox).join("")}</div><div class="card"><h3>Decision</h3>${chk("c1", "Name matches ID")}${chk("c2", "Selfie matches ID photo")}${chk("c3", "Document looks genuine")}${chk("bl", "Blacklist this ID, phone and bank account (fraud)")}${adminNotesHtml}${decRow("kycdec", id, [["APPROVED", "Approve"], ["NEEDS_INFO", "Need more info", "g"], ["REJECTED", "Reject", "r"]])}</div>`;
   },
   async properties(id) {
     if (!id) { const s = qs().get("status") || "PENDING_REVIEW"; return `<p class="tabs">${["PENDING_REVIEW", "VERIFIED", "ACTIVE", "EXPIRED", "NEEDS_CHANGES", "REJECTED"].map((x) => `<a href="#/a/properties?status=${x}">${x.toLowerCase().replace("_", " ")}</a>`).join("")}</p>` + grid(list(await api("admin/properties?status=" + s)), (r) => `<div class="card">${link("properties", r)} <span class="tag">${esc(r.status)}</span>${kv(r)}</div>`); }
@@ -36,7 +41,7 @@ const ADM = {
     return `<p><a href="#/a/properties">← Back</a></p><div class="card"><h2>${esc(p.name)} <span class="tag">${esc(p.status)}</span></h2>${deep(Object.fromEntries(Object.entries(p).filter(([k]) => !["documents", "children"].includes(k) && !/auth/i.test(k))))}</div>
     <h3>Ownership documents</h3><div class="grid">${docs.map((d) => `<div class="card"><b>${esc(d.docType)}</b> <span class="tag">${esc(d.status)}</span>${fbox(d.fileUrl)}${d.rejectReason ? `<p class="muted">${esc(d.rejectReason)}</p>` : ""}${d.status === "PENDING" ? decRow("docdec", id + "|" + d.id, [["APPROVED", "Approve"], ["REJECTED", "Reject", "r"]]) : ""}</div>`).join("") || "<p class='muted'>No documents</p>"}</div>
     ${auth.length ? `<h3>Manager authorisation letters</h3><div class="grid">${auth.map((a) => `<div class="card">${kv(a)}${files(a).map(fbox).join("")}${a.status === "PENDING" ? decRow("authdec", id + "|" + a.id, [["APPROVED", "Approve"], ["REJECTED", "Reject", "r"]]) : ""}</div>`).join("")}</div>` : ""}
-    ${["PENDING_REVIEW", "DOCS_UPLOADED"].includes(p.status) ? `<div class="card"><h3>Decision</h3>${chk("k1", "Owner is verified")}${chk("k2", "Documents look genuine")}${chk("k3", "Address and location match the documents")}${chk("k4", "Not a duplicate of another listing")}${notes}${decRow("propdec", id, [["APPROVED", "Verify property"], ["NEEDS_CHANGES", "Needs changes", "g"], ["REJECTED", "Reject", "r"]])}</div>` : ""}
+    ${["PENDING_REVIEW", "DOCS_UPLOADED"].includes(p.status) ? `<div class="card"><h3>Decision</h3>${chk("k1", "Owner is verified")}${chk("k2", "Documents look genuine")}${chk("k3", "Address and location match the documents")}${chk("k4", "Not a duplicate of another listing")}${adminNotesHtml}${decRow("propdec", id, [["APPROVED", "Verify property"], ["NEEDS_CHANGES", "Needs changes", "g"], ["REJECTED", "Reject", "r"]])}</div>` : ""}
     ${["ACTIVE", "EXPIRED"].includes(p.status) ? `<div class="card"><h3>Overrides</h3><div class="row">${btn("extend", id, "Extend period", "g")}${btn("revoke", id, "Revoke / hide", "r")}</div></div>` : ""}`;
   },
   async users() {
@@ -58,9 +63,11 @@ const ADM = {
 const TABS = [["overview", "Overview"], ["kyc", "Owner verification"], ["properties", "Properties"], ["users", "Users"], ["accounts", "Bank accounts"], ["tickets", "Tickets"], ["reports", "Reported listings"], ["reviews", "Reviews"], ["disputes", "Payment disputes"], ["analytics", "Analytics"], ["features", "Features"], ["unit-types", "Unit types"], ["locations", "Locations"], ["fees", "Onboarding fees"], ["audit", "Audit log"]];
 EXTRA.a = async (s = "overview", id) => {
   if (!ADM[s]) s = "overview";
-  const tabs = `<p class="tabs">${TABS.map(([k, t]) => `<a href="#/a/${k}" style="${k === s ? "font-weight:700;text-decoration:underline" : ""}">${t}</a>`).join("")}</p>`;
-  app.innerHTML = `<h2>Admin</h2>${tabs}<div id="ab">Loading…</div>`;
-  document.getElementById("ab").innerHTML = await ADM[s](id); loadFiles();
+  const tabs = `<nav class="admin-tabs" aria-label="Admin sections">${TABS.map(([key, label]) => `<a class="admin-tab ${key === s ? "is-active" : ""}" href="#/a/${key}"${key === s ? ' aria-current="page"' : ""}>${label}</a>`).join("")}</nav>`;
+  app.innerHTML = `<section class="admin-page"><div class="page-heading admin-heading"><div><p class="eyebrow"><span class="eyebrow-dot"></span> Secure operations</p><h1>Admin workspace</h1><p>Review accounts, listings and platform activity.</p></div><span class="admin-status">Administrator access</span></div>${tabs}<div id="ab" class="admin-content"><div class="loading-panel"><span class="skeleton wide"></span><span class="skeleton medium"></span><span class="skeleton short"></span></div></div></section>`;
+  const panel = document.getElementById("ab");
+  try { panel.innerHTML = await ADM[s](id); await loadFiles(); }
+  catch (x) { panel.innerHTML = `<section class="error-state" role="alert"><div class="error-mark">!</div><p class="eyebrow">Could not load this section</p><h1>Let’s try that again.</h1><p>${esc(x.message || "The request did not complete.")}</p><div class="error-actions"><button type="button" data-retry>Retry section</button><a class="button button-secondary" href="#/a/overview">Back to overview</a></div></section>`; }
 };
 const dv = (id) => id.split("|"), val = (i) => document.getElementById(i)?.checked, nt = () => document.getElementById("notes")?.value || "";
 FORMS.ufilter = (f) => (location.hash = "#/a/users?" + new URLSearchParams(Object.entries(f).filter(([, v]) => v)));

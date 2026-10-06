@@ -1,11 +1,12 @@
 // Phase 9: modal forms (replace pop-up prompts), unit/property edit and delete, ticket page with photos
 function ask(title, fields = [], ok = "Submit") {
   return new Promise((res) => {
-    const d = document.createElement("dialog"), fh = (f) => {
+    const d = document.createElement("dialog"); d.className = "modal-dialog";
+    const fh = (f) => {
       const a = `name="${f.n}" ${f.req ? "required" : ""} ${f.min != null ? `min="${f.min}"` : ""} ${f.max != null ? `max="${f.max}"` : ""}`;
       return L(f.l, f.t === "textarea" ? `<textarea ${a}>${esc(f.v || "")}</textarea>` : f.t === "select" ? `<select ${a}>${opts(f.o)}</select>` : f.t === "file" ? `<input type="file" ${a} accept="${f.accept || "image/*"}" ${f.multiple ? "multiple" : ""}>` : `<input type="${f.t || "text"}" ${a} value="${esc(f.v ?? "")}">`);
     };
-    d.innerHTML = `<form method="dialog" class="col"><h3>${esc(title)}</h3>${fields.map(fh).join("")}<div class="row"><button value="ok">${esc(ok)}</button><button type="button" class="g" id="x">Cancel</button></div></form>`;
+    d.innerHTML = `<form method="dialog" class="col modal-form"><h3>${esc(title)}</h3>${fields.map(fh).join("")}<div class="row"><button value="ok">${esc(ok)}</button><button type="button" class="g" id="x">Cancel</button></div></form>`;
     let v = null; const f = d.querySelector("form");
     f.addEventListener("submit", () => { v = Object.fromEntries(new FormData(f)); for (const x of fields) if (x.t === "file") v[x.n] = [...f.elements[x.n].files]; });
     d.querySelector("#x").onclick = () => d.close("x");

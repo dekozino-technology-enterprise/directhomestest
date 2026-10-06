@@ -1,3 +1,63 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Direct Homes Nigeria</title><link rel="stylesheet" href="style.css"></head>
-<body><header><a href="#/" class="logo">🏠 Direct Homes</a><nav id="nav"></nav></header><main id="app"></main><footer><a href="#/terms">Terms</a> · <a href="#/privacy">Privacy (NDPA)</a></footer><div id="toast"></div>
-<script src="config.js"></script><script src="app.js"></script><script src="pages.js"></script><script src="forms.js"></script><script src="admin.js"></script><script>window.startDirectHomesApp()</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#183f36">
+  <meta name="description" content="Find a home and rent directly from verified owners with Direct Homes Nigeria.">
+  <title>Direct Homes — Rent with confidence</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip-link" href="#app">Skip to content</a>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="#/" class="brand" aria-label="Direct Homes home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M7 18.1 20 7l13 11.1v14.4a1.5 1.5 0 0 1-1.5 1.5h-23A1.5 1.5 0 0 1 7 32.5V18.1Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+            <path d="M16 33V22h8v11M4.8 18.2 20 5l15.2 13.2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M28 11.7V8h4v7.2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span class="brand-copy">
+          <span class="brand-name">direct<span>homes</span></span>
+          <span class="brand-tagline">Nigeria · owner-direct rentals</span>
+        </span>
+      </a>
+
+      <button id="navToggle" class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav" aria-label="Open navigation">
+        <span></span><span></span><span></span>
+      </button>
+      <nav id="nav" class="site-nav" aria-label="Main navigation"></nav>
+    </div>
+  </header>
+
+  <main id="app" class="app-main" aria-live="polite" aria-busy="false"></main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="footer-mark" aria-hidden="true">D</span>
+        <div><strong>Direct Homes</strong><span>Rent with confidence.</span></div>
+      </div>
+      <p class="footer-note">A more direct way to find a place to call home.</p>
+      <nav class="footer-links" aria-label="Legal">
+        <a href="#/terms">Terms</a>
+        <a href="#/privacy">Privacy (NDPA)</a>
+      </nav>
+      <p class="copyright">© <span id="currentYear">2026</span> Direct Homes Nigeria</p>
+    </div>
+  </footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script src="pages.js"></script>
+  <script src="forms.js"></script>
+  <script src="admin.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>

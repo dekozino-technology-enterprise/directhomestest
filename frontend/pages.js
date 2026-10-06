@@ -3,7 +3,7 @@ const L = (l, inner) => `<label>${l}${inner}</label>`;
 const inp = (n, l, t = "text", x = "") => L(l, `<input name="${n}" type="${t}" ${x}>`);
 const opts = (a) => a.map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join("");
 const up = (file, path = "verify/upload") => { const f = new FormData(); f.append("file", file); return api(path, { form: f }); };
-const deep = (o) => `<ul>${Object.entries(o || {}).map(([k, v]) => `<li>${esc(k)}: ${v && typeof v === "object" ? deep(v) : `<b>${esc(v)}</b>`}</li>`).join("")}</ul>`;
+const deep = (o) => `<ul class="data-list">${Object.entries(o || {}).map(([k, v]) => `<li><span class="data-key">${esc(humanize(k))}</span>: <span class="data-value">${v && typeof v === "object" ? deep(v) : `<b>${esc(v)}</b>`}</span></li>`).join("")}</ul>`;
 async function locs(box, set) {
   let pid = ""; box.innerHTML = "";
   const level = async () => {
@@ -14,27 +14,54 @@ async function locs(box, set) {
   };
   await level();
 }
-const phoneCard = () => `<div class="card"><h3>Verify your phone</h3><div class="row">${btn("otp", "", "Send code")}<input id="otp" placeholder="6-digit code">${btn("otpok", "", "Confirm")}</div><p class="muted">Email verification will be added once our own domain is ready.</p></div>`;
+const phoneCard = () => `<div class="card"><h3>Verify your phone</h3><div class="row"><button type="button" data-a="otp">Send code</button><label class="sr-only" for="otp">Six-digit code</label><input id="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code"> <button type="button" class="g" data-a="otpok">Confirm</button></div><p class="muted">Email verification will be added once our own domain is ready.</p></div>`;
 
 function nav() {
-  const u = user(), r = u?.role, l = (h, t) => `<a href="#/${h}">${t}</a>`; let x = l("search", "Search");
-  if (!u) x += l("login", "Sign in") + l("register", "Register");
-  else {
-    x += l("dash", "Dashboard");
-    if (r === "TENANT") x += l("verify", "Verify phone") + l("news", "Notices");
-    if (r === "OWNER" || r === "MANAGER") x += l("onboard", "Get verified") + (r === "OWNER" ? l("pnew", "Add property") : "") + l("unitnew", "Add unit") + l("announce", "Notices") + l("insights", "Reports");
-    if (r === "ADMIN") x += l("a/overview", "Admin");
-    x += l("notes", "Alerts") + `<a href="#" data-a="logout">Sign out</a>`;
+  const u = user(), role = u?.role || "", path = (location.hash || "#/").split("?")[0];
+  const targetFor = (h) => "#/" + h;
+  const isActive = (h) => {
+    const target = targetFor(h);
+    return path === target || (h === "search" && path === "#/") || (h.includes("/") && path.startsWith(target.split("/").slice(0, 2).join("/") + "/"));
+  };
+  const link = (h, text, kind = "") => `<a class="nav-link ${isActive(h) ? "is-active" : ""} ${kind}" href="${targetFor(h)}"${isActive(h) ? ' aria-current="page"' : ""}>${text}</a>`;
+  let items = link("search", "Find a home");
+  if (!u) {
+    items += link("login", "Sign in") + link("register", "Get started", "nav-cta");
+  } else {
+    items += link("dash", "Dashboard");
+    if (role === "TENANT") items += link("verify", "Verify phone") + link("news", "Notices");
+    if (role === "OWNER" || role === "MANAGER") items += link("onboard", "Get verified") + (role === "OWNER" ? link("pnew", "Add property") : "") + link("unitnew", "Add a unit") + (role === "OWNER" ? link("announce", "Notices") + link("insights", "Reports") : link("announce", "Notices"));
+    if (role === "ADMIN") items += link("a/overview", "Admin");
+    items += link("notes", "Alerts") + `<a class="nav-link nav-signout" href="#/login" data-a="logout">Sign out</a>`;
   }
-  document.getElementById("nav").innerHTML = x;
+  const el = document.getElementById("nav");
+  if (el) el.innerHTML = items;
 }
-
 // ---------- public pages ----------
 EXTRA.home = () => {
-  app.innerHTML = `<div class="hero"><h1>Rent directly from the owner.</h1><p>No agents. No viewing fees. No hidden mark-ups. Every owner and property is verified.</p><form id="hf" class="row" style="justify-content:center"><input name="q" placeholder="Area or city, e.g. Lekki"><button>Search homes</button></form></div>
-  <h3>How it works</h3><div class="grid"><div class="card"><b>1. Search</b><p>Browse verified homes. The price you see is the price the owner set.</p></div><div class="card"><b>2. Talk and view</b><p>Message the owner and book a viewing. It is always free.</p></div><div class="card"><b>3. Get a payment token</b><p>The owner approves you, holds the unit, and you pay the owner's bank account directly.</p></div><div class="card"><b>4. Move in and stay supported</b><p>Report issues, track repairs and renew from the same app.</p></div></div>
-  <h3>Own or manage property?</h3><div class="card"><p>Get verified, add your property, and pay one yearly fee per property once it is approved. Tenants never pay us anything.</p><a href="#/register"><button>List your property</button></a></div>`;
-  document.getElementById("hf").onsubmit = (e) => { e.preventDefault(); location.hash = "#/search?q=" + encodeURIComponent(new FormData(e.target).get("q")); };
+  app.innerHTML = `<section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow"><span class="eyebrow-dot"></span> A better way to rent in Nigeria</p>
+      <h1>Find a home.<br><em>Keep it direct.</em></h1>
+      <p>Discover owner-listed homes, speak directly with the people who know them best, and move with confidence. No agents. No viewing fees.</p>
+      <form id="hf" class="hero-search">
+        <label class="search-field" for="hero-q"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="sr-only">Area or city</span><input id="hero-q" name="q" placeholder="Area or city, e.g. Lekki" autocomplete="address-level2"></label>
+        <button type="submit">Explore homes <span aria-hidden="true">→</span></button>
+      </form>
+      <div class="hero-proof"><span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m4 10 4 4 8-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Verified owners</span><span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m4 10 4 4 8-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Free viewings</span><span><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m4 10 4 4 8-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Clear pricing</span></div>
+    </div>
+    <div class="hero-visual" aria-label="A welcoming modern home surrounded by greenery">
+      <img class="hero-photo" src="assets/hero-residence.jpg" alt="Modern home with warm natural light and tropical landscaping" fetchpriority="high">
+      <div class="hero-badge"><span class="hero-badge-mark">✓</span><span><strong>Owner-direct</strong><br>Rent with more confidence</span></div>
+      <div class="hero-photo-caption"><span>A place to feel at home.</span><span>Direct Homes · Nigeria</span></div>
+    </div>
+  </section>
+  <div class="trust-strip" aria-label="Our promises"><div class="trust-item"><span class="trust-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 19 6v5c0 4.7-3 8-7 10-4-2-7-5.3-7-10V6l7-3Z" stroke="currentColor" stroke-width="1.7"/><path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Verified owners and homes</div><div class="trust-item"><span class="trust-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v5l3.4 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span> View every home for free</div><div class="trust-item"><span class="trust-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8.5h16M6.5 5.5h11M6 12h12l-1 7H7l-1-7Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span> Rent goes directly to the owner</div></div>
+  <section class="section-block"><div class="section-head"><div><p class="eyebrow"><span class="eyebrow-dot"></span> Simple by design</p><h2>A calmer way to find your next home.</h2></div><p>From the first search to the day you move in, keep every conversation and decision direct, transparent and in one place.</p></div>
+    <div class="steps-grid"><article class="step-card"><span class="step-number">01</span><h3>Discover with clarity</h3><p>Browse homes shared by their owners and see the details before you reach out.</p></article><article class="step-card"><span class="step-number">02</span><h3>Meet and view for free</h3><p>Message the owner and arrange a viewing. You never pay an inspection fee.</p></article><article class="step-card"><span class="step-number">03</span><h3>Move in with confidence</h3><p>Use a secure payment token, keep important records together, and get support when you need it.</p></article></div>
+  </section>
+  <section class="owner-callout"><div><p class="eyebrow">For owners and managers</p><h2>Good homes deserve a more direct way to be found.</h2><p>Get verified, share your listing and manage conversations with less friction.</p></div><a class="button" href="#/register">List your property <span aria-hidden="true">→</span></a></section>`;
+  document.getElementById("hf").onsubmit = (e) => { e.preventDefault(); const q = new FormData(e.target).get("q") || ""; location.hash = "#/search?q=" + encodeURIComponent(q); };
 };
 const legal = (t, body) => (app.innerHTML = `<div class="card"><h2>${t}</h2>${body}<p class="muted">Draft text. Have a Nigerian lawyer review it before launch.</p></div>`);
 EXTRA.terms = () => legal("Terms of service", "<p>Direct Homes connects tenants with verified owners and managers. We do not charge tenants and we do not take any part of your rent. Rent is paid by bank transfer directly to the account shown on your approved payment token, using the token code as the narration.</p><p>Owners pay a yearly onboarding fee per property after verification. Listings must be truthful. Fraud leads to removal and a ban. Never pay anyone outside the account shown on your token.</p>");
@@ -52,9 +79,9 @@ FORMS.kyc = async (f) => { const [a, b] = await Promise.all([up(f.idDoc), up(f.s
 FORMS.acct = async (f) => { await api("accounts", { body: { ...f, isDefault: true } }); say("Saved. It may be reviewed by an admin."); EXTRA.onboard(); };
 
 // ---------- properties and units ----------
-EXTRA.pnew = () => {
-  app.innerHTML = `<h2>Add a property</h2><form data-form="pnew" class="col card">${L("Type", `<select name="kind">${opts([["HOUSE", "Single house, flat or room"], ["BUILDING", "Building with several units"], ["ESTATE", "Estate I own entirely"]])}</select>`)}${inp("name", "Property name")}${inp("address", "Full address")}<label>Location</label><div id="lb" class="row"></div><input type="hidden" name="locationId" required>${inp("declaredUnits", "Number of units you will list", "number", 'min="1" value="1"')}${inp("estateName", "Estate name (only if your house is in an estate with many owners)")}${L("Description", '<textarea name="description"></textarea>')}<p class="muted">Please double-check the spelling of names. They appear exactly as typed.</p><button>Create property</button></form>`;
-  locs(document.getElementById("lb"), (id) => (document.querySelector('[name=locationId]').value = id));
+EXTRA.pnew = async () => {
+  app.innerHTML = `<div class="page-heading"><div><p class="eyebrow"><span class="eyebrow-dot"></span> Owner workspace</p><h1>Add a property</h1><p>Start with the basics. You can add units and documents next.</p></div></div><form data-form="pnew" class="col card">${L("Property type", `<select name="kind">${opts([["HOUSE", "Single house, flat or room"], ["BUILDING", "Building with several units"], ["ESTATE", "Estate I own entirely"]])}</select>`)}${inp("name", "Property name")}${inp("address", "Full address")}<label>Location<div id="lb" class="row"></div></label><input type="hidden" name="locationId" required>${inp("declaredUnits", "Number of units you will list", "number", 'min="1" value="1"')}${inp("estateName", "Estate name (only if your house is in an estate with many owners)")}${L("Description", '<textarea name="description"></textarea>')}<p class="form-note">Please double-check the spelling of names. They appear exactly as typed.</p><button type="submit">Create property <span aria-hidden="true">→</span></button></form>`;
+  await locs(document.getElementById("lb"), (id) => (document.querySelector('[name=locationId]').value = id));
 };
 FORMS.pnew = async (f) => { const b = { ...f, declaredUnits: Number(f.declaredUnits) }; for (const k of ["estateName", "description"]) if (!b[k]) delete b[k]; const p = await api("properties", { body: b }); location.hash = "#/property/" + (p.id || p.property?.id); };
 EXTRA.property = async (id) => {
@@ -99,21 +126,11 @@ EXTRA.announce = async () => {
 FORMS.ann = async (f) => { await api("announcements", { body: f }); say("Sent"); };
 EXTRA.insights = async () => { const d = await api("insights/summary"); app.innerHTML = `<h2>Reports</h2><div class="card">${deep(d)}</div><div class="row">${btn("dl", "insights/export/rent.csv", "Download rent CSV", "g")}${btn("dl", "insights/export/tickets.csv", "Download tickets CSV", "g")}</div>`; };
 
-// ---------- admin ----------
-EXTRA.a = async (s = "analytics") => {
-  const M = {
-    tickets: ["admin/tickets", (t) => btn("amed", t.id, "Mediate", "g")],
-    reports: ["admin/reports", (r) => btn("arep", r.unitId || r.id, "Dismiss", "g", "DISMISS") + btn("arep", r.unitId || r.id, "Take down", "r", "TAKE_DOWN")],
-    reviews: ["admin/reviews", (r) => btn("ahide", r.id, "Hide", "r")],
-    disputes: ["admin/tokens", (t) => (t.status === "DISPUTED" ? btn("ares", t.id, "Mark paid", "", "CONFIRM_PAID") + btn("ares", t.id, "Cancel", "r", "CANCEL") : "")],
-    accounts: ["admin/accounts", (a) => btn("aacc", a.id, "Approve", "", "APPROVED") + btn("aacc", a.id, "Reject", "r", "REJECTED")],
-  };
-  const tabs = `<p class="tabs"><a href="#/a/analytics">Analytics</a>${Object.keys(M).map((k) => `<a href="#/a/${k}">${k}</a>`).join("")}<a href="${API}/admin/">Verification and properties (console)</a></p>`;
-  if (!M[s]) { const d = await api("admin/analytics/overview"); app.innerHTML = `<h2>Admin</h2>${tabs}<div class="card">${deep(d)}</div><div class="row">${["onboarding", "rent", "tickets", "users"].map((x) => btn("dl", `admin/export/${x}.csv`, x + ".csv", "g")).join("")}</div>`; return; }
-  const rows = arr(await api(M[s][0]));
-  app.innerHTML = `<h2>${esc(s)}</h2>${tabs}<div class="grid">${rows.map((r) => `<div class="card">${kv(r)}<div class="row">${M[s][1](r)}</div></div>`).join("") || "<p>Nothing to review.</p>"}</div>`;
+EXTRA.a = () => {
+  app.innerHTML = `<section class="error-state" role="alert"><div class="error-mark">!</div><p class="eyebrow">Admin workspace</p><h1>Admin tools could not load.</h1><p>Refresh the page. If this continues, contact your administrator.</p><div class="error-actions"><button type="button" data-retry>Try again</button><a class="button button-secondary" href="#/">Return home</a></div></section>`;
 };
 
+// ---------- actions ----------
 // ---------- actions ----------
 Object.assign(A, {
   otp: () => api("verify/otp/send", { body: { channel: "PHONE" } }).then(() => say("Code sent by SMS")),
@@ -128,5 +145,16 @@ Object.assign(A, {
   ares: (id, x) => api(`admin/tokens/${id}/resolve`, { body: { outcome: x, notes: prompt("Notes:") || "Resolved" } }),
   aacc: (id, x) => api(`admin/accounts/${id}/decision`, { body: { decision: x, reason: x === "REJECTED" ? prompt("Reason:") || "Details do not match" : undefined } }),
 });
-document.addEventListener("submit", async (e) => { const n = e.target.dataset.form; if (!n || !FORMS[n]) return; e.preventDefault(); const b = e.target.querySelector("button"); b && (b.disabled = true); try { await FORMS[n](Object.fromEntries(new FormData(e.target)), e.target); } catch (x) { say(x.message); } b && (b.disabled = false); });
-addEventListener("hashchange", route); route();
+document.addEventListener("submit", async (e) => {
+  const form = e.target.closest("form[data-form]");
+  if (!form) return;
+  const handler = FORMS[form.dataset.form];
+  if (typeof handler !== "function") return;
+  e.preventDefault();
+  const button = form.querySelector('button[type="submit"], button:not([type])');
+  const original = button?.textContent;
+  if (button) { button.disabled = true; button.textContent = "Please wait…"; }
+  try { await handler(Object.fromEntries(new FormData(form)), form); }
+  catch (x) { say(x.message || "Something went wrong. Please try again."); }
+  finally { if (button?.isConnected) { button.disabled = false; button.textContent = original; } }
+});
