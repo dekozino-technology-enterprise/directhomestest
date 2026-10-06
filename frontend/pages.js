@@ -54,6 +54,7 @@ const navIcon = (route) => {
 function nav() {
   const u = user(), role = u?.role || "", path = (location.hash || "#/").split("?")[0];
   document.body?.classList.toggle("has-sidebar", Boolean(u));
+  if (document.body) document.body.dataset.role = u ? String(role).toLowerCase() : "guest";
   const targetFor = (h) => "#/" + h;
   const isActive = (h) => {
     const target = targetFor(h);
