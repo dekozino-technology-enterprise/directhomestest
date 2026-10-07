@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma";
 import { pickTier } from "../lib/fees";
 import { initCheckout, paystackConfigured, settlePayment } from "../lib/payments";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { notify } from "../lib/access";
 
 const r = Router();
 r.use(requireAuth, requireRole("OWNER", "MANAGER"));
@@ -165,8 +166,14 @@ r.patch("/:id/managers/:managerId", requireRole("OWNER"), async (req, res) => {
 });
 r.delete("/:id/managers/:managerId", requireRole("OWNER"), async (req, res) => {
   const a = await access(req); if (!a?.isOwner) return res.status(404).json({ error: "Not found" });
-  await prisma.managerAssignment.updateMany({ where: { propertyId: a.p.id, managerId: req.params.managerId }, data: { active: false } });
-  res.json({ removed: true });
+  // Really remove the manager (not just deactivate), and withdraw any letter still waiting for admin approval
+  const where = { propertyId: a.p.id, managerId: req.params.managerId };
+  const [gone] = await prisma.$transaction([
+    prisma.managerAssignment.deleteMany({ where }),
+    prisma.managerAuthorisation.deleteMany({ where: { ...where, status: "PENDING" } }),
+  ]);
+  if (gone.count) await notify([req.params.managerId], "MANAGER", "Removed as manager", `You are no longer a manager of "${a.p.name}".`);
+  res.json({ removed: gone.count > 0 });
 });
 
 // ───── Edit and delete a property (Phase 9) ─────
