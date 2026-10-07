@@ -20,7 +20,7 @@ r.get("/mine", async (req, res) => {
     orderBy: { endsAt: "asc" }, take: 200,
     include: { unit: { select: { id: true, title: true, property: { select: { name: true } } } }, tenant: { select: { fullName: true, phone: true } } } });
   res.json(rows.map((t) => ({ id: t.id, unit: t.unit, tenant: tenant ? undefined : t.tenant, startsAt: t.startsAt, endsAt: t.endsAt, daysLeft: Math.ceil((t.endsAt.getTime() - Date.now()) / 86_400_000),
-    active: t.active, endedAt: t.endedAt, rentKobo: t.rentKobo, renewedCount: t.renewedCount, moveInConfirmedAt: t.moveInConfirmedAt, agreementUrl: `/api/tenancies/${t.id}/agreement` })));
+    active: t.active, endedAt: t.endedAt, rentKobo: t.rentKobo, renewedCount: t.renewedCount, moveInConfirmedAt: t.moveInConfirmedAt, issued: !!t.agreementUrl, agreementUrl: `/api/tenancies/${t.id}/agreement` })));
 });
 
 r.post("/:id/confirm-move-in", requireRole("TENANT"), async (req, res) => {
@@ -41,8 +41,7 @@ r.get("/:id/agreement", async (req, res) => {
   if (!ok) return res.status(404).json({ error: "Not found" });
   let buf: Buffer | null = null;
   if (t.agreementUrl && /^agreement-[\w-]+\.pdf$/.test(t.agreementUrl)) buf = await readPrivate(t.agreementUrl);
-  buf ??= await writeAgreement(t.id) ?? (await agreementBuffer(t.id));
-  if (!buf) return res.status(404).json({ error: "Not found" });
+  if (!buf) return res.status(404).json({ error: "Your landlord has not issued the agreement yet" });
   res.type("application/pdf").set("Content-Disposition", 'inline; filename="tenancy-agreement.pdf"').send(buf);
 });
 

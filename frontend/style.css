@@ -399,3 +399,4 @@ body.has-sidebar .site-nav::-webkit-scrollbar-thumb{border-radius:8px;background
   .admin-review-row>span:nth-child(2) small{font-size:7px}
   .overview-update{padding:6px 8px;font-size:8px}
 }
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;width:100%;min-height:380px}.chips button{padding:4px 9px;font-size:13px;margin:2px}

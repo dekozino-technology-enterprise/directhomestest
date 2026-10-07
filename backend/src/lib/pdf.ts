@@ -1,7 +1,7 @@
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import { prisma } from "./prisma";
-import { writePrivate } from "./storage";
+import { writePrivate, readPrivate } from "./storage";
 import { decrypt } from "./crypto";
 
 // pdfkit's built-in fonts have no ₦ glyph, so PDFs say "NGN".
@@ -24,8 +24,8 @@ const row = (d: PDFKit.PDFDocument, k: string, v: string) => { // fixed two-colu
 
 async function load(tenancyId: string) {
   const t = await prisma.tenancy.findUnique({ where: { id: tenancyId }, include: {
-    tenant: { select: { fullName: true } },
-    unit: { include: { property: { include: { location: { select: { name: true } }, owner: { select: { fullName: true } }, parent: { select: { name: true } } } } } } } });
+    tenant: { select: { fullName: true, email: true, phone: true } },
+    unit: { include: { property: { include: { location: { select: { name: true } }, owner: { select: { fullName: true, phone: true, email: true } }, parent: { select: { name: true } } } } } } } });
   if (!t) return null;
   const token = t.tokenId ? await prisma.paymentToken.findUnique({ where: { id: t.tokenId } }) : null;
   const confirmer = token?.confirmedById ? await prisma.user.findUnique({ where: { id: token.confirmedById }, select: { fullName: true } }) : null;
@@ -69,7 +69,9 @@ export async function receiptBuffer(tokenId: string) {
     tenant: { select: { fullName: true } }, unit: { include: { property: { include: { owner: { select: { fullName: true } } } } } } } });
   if (!t || t.status !== "PAID") return null;
   const total = t.rentKobo + t.cautionKobo + t.serviceChargeKobo + t.platformFeeKobo;
+  const logo = await logoOf(t.unit.property.ownerId);
   return render((d) => {
+    if (logo) drawLogo(d, logo);
     d.font("Helvetica-Bold").fontSize(18).text("PAYMENT RECEIPT", { align: "center" }).moveDown(1);
     row(d, "Receipt no:", t.code ?? t.id); row(d, "Date confirmed:", t.confirmedAt ? day(t.confirmedAt) : "-");
     row(d, "Received from:", t.tenant.fullName); row(d, "Landlord:", t.unit.property.owner.fullName);
@@ -89,4 +91,48 @@ export async function writeAgreement(tenancyId: string) {
   await writePrivate(key, buf);
   await prisma.tenancy.update({ where: { id: tenancyId }, data: { agreementUrl: key } });
   return buf;
+}
+
+// ───── Landlord-issued agreements and logo ─────
+export const AGREEMENT_FIELDS = ["tenant_name", "tenant_email", "tenant_phone", "landlord_name", "landlord_phone", "property_name", "unit_title", "address", "rent", "caution", "service_charge", "total", "pay_period", "start_date", "end_date", "receipt_no", "today"];
+const isImg = (k?: string | null) => !!k && /\.(png|jpg)$/.test(k);
+/** The owner's logo for receipts: default template first, else the newest template that has one. */
+export async function logoOf(ownerId: string) {
+  const t = await prisma.agreementTemplate.findFirst({ where: { ownerId, active: true, logoKey: { not: null } }, orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }] });
+  return t && isImg(t.logoKey) ? readPrivate(t.logoKey!) : null;
+}
+function drawLogo(d: PDFKit.PDFDocument, buf: Buffer) {
+  try { d.image(buf, 56, 40, { fit: [140, 60] }); d.y = 110; d.x = 56; } catch { /* unreadable image: skip the logo */ }
+}
+const fill = (s: string, v: Record<string, string>) => s.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k) => v[k] ?? m).replace(/₦/g, "NGN ");
+function agreementPdf(body: string, v: Record<string, string>, logo: Buffer | null) {
+  return render((d) => {
+    if (logo) drawLogo(d, logo);
+    for (const raw of fill(body, v).split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line) { d.moveDown(0.4); continue; }
+      if (line.startsWith("# ")) d.moveDown(0.3).font("Helvetica-Bold").fontSize(12).fillColor("#000").text(line.slice(2)).moveDown(0.2);
+      else d.font("Helvetica").fontSize(10.5).fillColor("#000").text(line, { align: "justify" }).moveDown(0.3);
+    }
+    if (d.y > 640) d.addPage();
+    const y = d.y + 40;
+    d.font("Helvetica").fontSize(10).text("______________________", 56, y).text(v.landlord_name + " (Landlord)", 56, y + 14);
+    d.text("______________________", 320, y).text(v.tenant_name + " (Tenant)", 320, y + 14);
+    d.fontSize(8).fillColor("#777").text("Issued through Direct Homes. Ref " + v.receipt_no, 56, y + 50);
+  });
+}
+type Tpl = { body: string; logoKey: string | null };
+async function tplLogo(tpl: Tpl, ownerId: string) { return isImg(tpl.logoKey) ? readPrivate(tpl.logoKey!) : logoOf(ownerId); }
+export async function issueAgreement(tenancyId: string, tpl: Tpl) {
+  const x = await load(tenancyId); if (!x) return null;
+  const { t, token } = x, p = t.unit.property, total = token ? token.rentKobo + token.cautionKobo + token.serviceChargeKobo : t.rentKobo;
+  const v: Record<string, string> = { tenant_name: t.tenant.fullName, tenant_email: t.tenant.email, tenant_phone: t.tenant.phone, landlord_name: p.owner.fullName, landlord_phone: p.owner.phone, property_name: p.name + (p.parent ? ` (${p.parent.name})` : ""), unit_title: t.unit.title, address: `${p.address}, ${p.location.name}`, rent: ngn(t.rentKobo), caution: ngn(token?.cautionKobo ?? 0), service_charge: ngn(token?.serviceChargeKobo ?? 0), total: ngn(total), pay_period: PERIOD[t.payDuration], start_date: day(t.startsAt), end_date: day(t.endsAt), receipt_no: token?.code ?? t.id, today: day(new Date()) };
+  const buf = await agreementPdf(tpl.body, v, await tplLogo(tpl, p.ownerId)), key = `agreement-${tenancyId}.pdf`;
+  await writePrivate(key, buf);
+  await prisma.tenancy.update({ where: { id: tenancyId }, data: { agreementUrl: key } });
+  return buf;
+}
+export async function previewAgreement(tpl: Tpl, ownerId: string, ownerName: string) {
+  const v: Record<string, string> = { tenant_name: "Chinedu Okafor", tenant_email: "chinedu@example.com", tenant_phone: "08012345678", landlord_name: ownerName, landlord_phone: "08000000000", property_name: "Sample Court", unit_title: "2-bedroom flat, Block B", address: "12 Sample Street, Lekki", rent: ngn(180000000), caution: ngn(20000000), service_charge: ngn(10000000), total: ngn(210000000), pay_period: "year", start_date: day(new Date()), end_date: day(new Date(Date.now() + 365 * 86_400_000)), receipt_no: "SAMPLE-0001", today: day(new Date()) };
+  return agreementPdf(tpl.body, v, await tplLogo(tpl, ownerId));
 }

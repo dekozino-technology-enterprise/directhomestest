@@ -18,6 +18,7 @@ import dashboards from "./routes/dashboards";
 import accounts from "./routes/accounts";
 import tokens from "./routes/tokens";
 import tenancies from "./routes/tenancies";
+import agreements from "./routes/agreements";
 import adminPayments from "./routes/adminPayments";
 import tickets from "./routes/tickets";
 import vendors from "./routes/vendors";
@@ -59,6 +60,7 @@ app.use("/api", engage); // /enquiries, /viewings, /favourites
 app.use("/api/accounts", accounts); // owner/manager bank accounts for receiving rent
 app.use("/api/tokens", tokens); // payment token flow (direct bank transfer)
 app.use("/api/tenancies", tenancies);
+app.use("/api/agreements", agreements);
 app.use("/api/tickets", tickets); // maintenance tickets
 app.use("/api/vendors", vendors);
 app.use("/api/reviews", reviews); // GET is public

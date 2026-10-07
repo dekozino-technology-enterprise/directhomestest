@@ -75,7 +75,7 @@ function nav() {
       if (role === "OWNER" || role === "MANAGER") {
         items += link("onboard", "Get verified") + link("tickets", "Maintenance");
         if (role === "OWNER") items += link("pnew", "Add property");
-        items += link("unitnew", "Add a unit") + link("announce", "Notices");
+        items += link("unitnew", "Add a unit") + link("agreements", "Agreements") + link("announce", "Notices");
         if (role === "OWNER") items += link("insights", "Reports");
       }
     }

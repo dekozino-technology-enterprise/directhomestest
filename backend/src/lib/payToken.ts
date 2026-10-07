@@ -89,9 +89,8 @@ export async function completeToken(tokenId: string, confirmerId: string) {
   });
 
   const { t, tenancyId, total } = out;
-  if (t.kind === "NEW_TENANCY") await writeAgreement(tenancyId).catch((e) => console.error("Agreement PDF failed (can be regenerated on request):", e));
   const staff = await staffOf(t.unit.propertyId);
-  await notify([t.tenantId], "PAYMENT", "Payment confirmed", t.kind === "RENEWAL" ? `Your renewal for "${t.unit.title}" is confirmed.` : `Your payment of ${naira(total)} for "${t.unit.title}" is confirmed. The unit is yours. Your agreement and receipt are ready.`);
-  await notify(staff, "PAYMENT", "Rent payment confirmed", `${naira(total)} for "${t.unit.title}" (${t.code}).`);
+  await notify([t.tenantId], "PAYMENT", "Payment confirmed", t.kind === "RENEWAL" ? `Your renewal for "${t.unit.title}" is confirmed.` : `Your payment of ${naira(total)} for "${t.unit.title}" is confirmed. The unit is yours. Your receipt is ready, and your landlord will issue your tenancy agreement.`);
+  await notify(staff, "PAYMENT", "Rent payment confirmed", `${naira(total)} for "${t.unit.title}" (${t.code}).${t.kind === "NEW_TENANCY" ? " Open Agreements to issue the tenancy agreement to this tenant." : ""}`);
   return { tenancyId, totalKobo: total };
 }
