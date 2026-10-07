@@ -48,7 +48,7 @@ r.post("/", requireRole("OWNER"), async (req, res) => {
 });
 
 r.get("/mine", async (req, res) => {
-  const where = req.user!.role === "OWNER" ? { ownerId: req.user!.id, parentId: null } : { parentId: null, managers: { some: { managerId: req.user!.id, active: true } } };
+  const where = req.user!.role === "OWNER" ? { ownerId: req.user!.id, parentId: null } : { managers: { some: { managerId: req.user!.id, active: true } } };
   const rows = await prisma.property.findMany({
     where, orderBy: { createdAt: "desc" },
     include: { location: { select: { name: true } }, children: { select: { id: true, name: true, kind: true, address: true, declaredUnits: true } }, onboardings: { where: { expiresAt: { not: null } }, orderBy: { expiresAt: "desc" }, take: 1, select: { expiresAt: true, graceEndsAt: true } } },

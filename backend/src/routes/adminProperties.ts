@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { audit } from "../lib/audit";
 import { pickTier } from "../lib/fees";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { notify } from "../lib/access";
 
 const r = Router();
 r.use(requireAuth, requireRole("ADMIN"));
@@ -88,6 +89,14 @@ r.post("/properties/:id/revoke", async (req, res) => {
   res.json({ revoked: true });
 });
 
+// Manager authorisation letters: queue of letters waiting for a decision (works for houses inside estates too)
+r.get("/authorisations", async (req, res) => {
+  const status = (req.query.status as any) || "PENDING";
+  const rows = await prisma.managerAuthorisation.findMany({ where: { status }, take: 100, include: {
+    property: { select: { id: true, name: true, address: true, owner: { select: { fullName: true } } } },
+    manager: { select: { fullName: true, email: true, kyc: { select: { status: true } } } } } });
+  res.json(rows.map((a) => ({ id: a.id, status: a.status, propertyId: a.propertyId, property: a.property.name, address: a.property.address, owner: a.property.owner.fullName, manager: a.manager.fullName, managerEmail: a.manager.email, managerIdentity: a.manager.kyc?.status ?? "NOT_SUBMITTED", documentUrl: a.documentUrl })));
+});
 // Manager authorisation letters
 r.post("/authorisations/:id/decision", async (req, res) => {
   const p = z.object({ decision: z.enum(["APPROVED", "REJECTED"]) }).safeParse(req.body);
@@ -99,6 +108,12 @@ r.post("/authorisations/:id/decision", async (req, res) => {
     prisma.managerAuthorisation.update({ where: { id: a.id }, data: { status: p.data.decision } }),
     prisma.managerAssignment.updateMany({ where: { propertyId: a.propertyId, managerId: a.managerId }, data: { active: p.data.decision === "APPROVED" } }),
   ]);
+  const prop = await prisma.property.findUnique({ where: { id: a.propertyId }, select: { name: true, ownerId: true } });
+  if (prop) {
+    const ok = p.data.decision === "APPROVED";
+    await notify([a.managerId], "MANAGER", ok ? "You can now manage a property" : "Manager appointment declined", ok ? `You have been approved to manage "${prop.name}". It now appears in your dashboard.` : `The authorisation letter for "${prop.name}" was not approved. Ask the owner to appoint you again with a valid signed letter.`);
+    await notify([prop.ownerId], "MANAGER", ok ? "Manager approved" : "Manager appointment declined", ok ? `Your manager for "${prop.name}" has been approved and can now work on it.` : `The authorisation letter you uploaded for "${prop.name}" was not approved.`);
+  }
   await audit(req, "MANAGER_AUTH_" + p.data.decision, "ManagerAuthorisation", a.id);
   res.json({ status: p.data.decision });
 });
