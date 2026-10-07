@@ -27,13 +27,13 @@ async function main() {
   for (const [name, category] of features)
     await prisma.feature.upsert({ where: { name }, update: {}, create: { name, category } });
 
-  // Starter fee tiers (admin can edit; amounts in kobo — placeholders)
+  // Starter fee tiers (admin can edit; amounts in naira — placeholders)
   if ((await prisma.onboardingFeeTier.count()) === 0)
     await prisma.onboardingFeeTier.createMany({ data: [
-      { name: "Single house / flat / room", kind: "HOUSE", minUnits: 1, maxUnits: null, amountKobo: 1_000_000 },
-      { name: "Building 2-10 units", kind: "BUILDING", minUnits: 2, maxUnits: 10, amountKobo: 2_500_000 },
-      { name: "Building 11+ units", kind: "BUILDING", minUnits: 11, maxUnits: null, amountKobo: 5_000_000 },
-      { name: "Individual-owned estate (all its houses included)", kind: "ESTATE", minUnits: 1, maxUnits: null, amountKobo: 15_000_000 },
+      { name: "Single house / flat / room", kind: "HOUSE", minUnits: 1, maxUnits: null, amountNaira: 10_000 },
+      { name: "Building 2-10 units", kind: "BUILDING", minUnits: 2, maxUnits: 10, amountNaira: 25_000 },
+      { name: "Building 11+ units", kind: "BUILDING", minUnits: 11, maxUnits: null, amountNaira: 50_000 },
+      { name: "Individual-owned estate (all its houses included)", kind: "ESTATE", minUnits: 1, maxUnits: null, amountNaira: 150_000 },
     ] });
 
   // Starter location (admin adds the rest from the dashboard)

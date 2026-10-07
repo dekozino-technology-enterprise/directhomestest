@@ -70,7 +70,7 @@ r.get("/staff", requireRole("OWNER", "MANAGER"), async (req, res) => {
     prisma.maintenanceTicket.findMany({ where, orderBy: [{ createdAt: "desc" }], skip: (page - 1) * limit, take: limit, include: { unit: { select: { title: true, property: { select: { name: true } } } }, tenant: { select: { fullName: true } }, vendor: { select: { name: true } } } }),
   ]);
   const rank = { EMERGENCY: 0, HIGH: 1, MEDIUM: 2, LOW: 3 } as const;
-  const items = rows.map((t) => ({ id: t.id, unit: t.unit.title, property: t.unit.property.name, tenant: t.tenant.fullName, category: t.category, title: t.title, urgency: t.urgency, status: t.status, escalated: t.escalated, vendor: t.vendor?.name ?? null, estimateKobo: t.estimateKobo, costKobo: t.costKobo, createdAt: t.createdAt }))
+  const items = rows.map((t) => ({ id: t.id, unit: t.unit.title, property: t.unit.property.name, tenant: t.tenant.fullName, category: t.category, title: t.title, urgency: t.urgency, status: t.status, escalated: t.escalated, vendor: t.vendor?.name ?? null, estimateNaira: t.estimateNaira, costNaira: t.costNaira, createdAt: t.createdAt }))
     .sort((a, b) => (ACTIVE.includes(a.status) === ACTIVE.includes(b.status) ? rank[a.urgency] - rank[b.urgency] : ACTIVE.includes(a.status) ? -1 : 1)); // open and urgent first, within this page
   res.json({ total, page, pages: Math.ceil(total / limit), items });
 });
@@ -141,7 +141,7 @@ r.post("/:id/status", requireRole("OWNER", "MANAGER"), async (req, res) => {
 
 // Staff: vendor, cost estimate, final cost, urgency
 r.patch("/:id", requireRole("OWNER", "MANAGER"), async (req, res) => {
-  const p = z.object({ vendorId: z.string().nullable().optional(), estimateNaira: z.number().min(0).max(1e9).nullable().optional(), costNaira: z.number().min(0).max(1e9).nullable().optional(), urgency: z.enum(["LOW", "MEDIUM", "HIGH", "EMERGENCY"]).optional() }).safeParse(req.body);
+  const p = z.object({ vendorId: z.string().nullable().optional(), estimateNaira: z.number().int().min(0).max(1e9).nullable().optional(), costNaira: z.number().int().min(0).max(1e9).nullable().optional(), urgency: z.enum(["LOW", "MEDIUM", "HIGH", "EMERGENCY"]).optional() }).safeParse(req.body);
   if (!p.success) return res.status(400).json(p.error.flatten());
   const l = await loadTicket(req, req.params.id);
   if (!l || l.kind !== "staff") return res.status(404).json({ error: "Not found" });
@@ -155,8 +155,8 @@ r.patch("/:id", requireRole("OWNER", "MANAGER"), async (req, res) => {
     }
     data.vendorId = p.data.vendorId;
   }
-  if (p.data.estimateNaira !== undefined) data.estimateKobo = p.data.estimateNaira === null ? null : Math.round(p.data.estimateNaira * 100);
-  if (p.data.costNaira !== undefined) data.costKobo = p.data.costNaira === null ? null : Math.round(p.data.costNaira * 100);
+  if (p.data.estimateNaira !== undefined) data.estimateNaira = p.data.estimateNaira;
+  if (p.data.costNaira !== undefined) data.costNaira = p.data.costNaira;
   if (p.data.urgency) data.urgency = p.data.urgency;
   if (!Object.keys(data).length) return res.status(400).json({ error: "Nothing to change" });
   await prisma.maintenanceTicket.update({ where: { id: l.t.id }, data });

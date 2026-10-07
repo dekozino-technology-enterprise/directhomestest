@@ -39,13 +39,13 @@ async function main() {
   const lagos = await prisma.location.create({ data: { name: "Lagos", level: "STATE" } });
   const ajah = await prisma.location.create({ data: { name: "Ajah", level: "AREA", parentId: lagos.id } });
   const ut = await prisma.unitType.create({ data: { name: "Self-Contain" } });
-  const tier = await prisma.onboardingFeeTier.create({ data: { name: "t", kind: "HOUSE", amountKobo: 1000 } });
+  const tier = await prisma.onboardingFeeTier.create({ data: { name: "t", kind: "HOUSE", amountNaira: 10 } });
   const prop = await prisma.property.create({ data: { kind: "BUILDING", name: "Palm Court", address: "1 Palm St", locationId: ajah.id, ownerId: owner.id, status: "ACTIVE", declaredUnits: 10 } });
-  await prisma.propertyOnboarding.create({ data: { propertyId: prop.id, tierId: tier.id, amountKobo: 1000, paidAt: new Date(), startsAt: new Date(), expiresAt: new Date(Date.now() + 300 * DAY), graceEndsAt: new Date(Date.now() + 314 * DAY) } });
+  await prisma.propertyOnboarding.create({ data: { propertyId: prop.id, tierId: tier.id, amountNaira: 10, paidAt: new Date(), startsAt: new Date(), expiresAt: new Date(Date.now() + 300 * DAY), graceEndsAt: new Date(Date.now() + 314 * DAY) } });
   await prisma.managerAssignment.create({ data: { propertyId: prop.id, managerId: mgr.id } }); // no canViewPayouts
-  const mk = (title: string, status: "AVAILABLE" | "OCCUPIED") => prisma.unit.create({ data: { propertyId: prop.id, unitTypeId: ut.id, title, rentKobo: 50_000_00, status, images: { create: [1, 2, 3].map((i) => ({ url: `/media/a${i}.jpg`, sortOrder: i })) } } });
+  const mk = (title: string, status: "AVAILABLE" | "OCCUPIED") => prisma.unit.create({ data: { propertyId: prop.id, unitTypeId: ut.id, title, rentNaira: 50_000, status, images: { create: [1, 2, 3].map((i) => ({ url: `/media/a${i}.jpg`, sortOrder: i })) } } });
   const uA = await mk("Unit A", "OCCUPIED"), uB = await mk("Unit B", "AVAILABLE");
-  const ten = await prisma.tenancy.create({ data: { unitId: uA.id, tenantId: t1.id, rentKobo: 50_000_00, startsAt: new Date(), endsAt: new Date(Date.now() + 300 * DAY) } });
+  const ten = await prisma.tenancy.create({ data: { unitId: uA.id, tenantId: t1.id, rentNaira: 50_000, startsAt: new Date(), endsAt: new Date(Date.now() + 300 * DAY) } });
 
   console.log("\n— RAISING TICKETS");
   let r = await call("POST", "/tickets", t2.tok, { unitId: uA.id, category: "PLUMBING", title: "Leaking tap", description: "Kitchen tap drips" });
@@ -95,9 +95,9 @@ async function main() {
   r = await call("POST", `/tickets/${tk}/comments`, t1.tok, { body: "Thank you, please hurry", internal: true }); ok(r.s === 201, "tenant comment added");
   r = await call("GET", "/tickets/" + tk, t1.tok);
   ok(r.j.comments.every((c: any) => !c.internal) && r.j.comments.length === 2, "tenant never sees internal notes");
-  ok(r.j.estimateKobo === undefined && r.j.costKobo === undefined && r.j.vendor.phone === undefined, "tenant does not see costs or vendor phone");
+  ok(r.j.estimateNaira === undefined && r.j.costNaira === undefined && r.j.vendor.phone === undefined, "tenant does not see costs or vendor phone");
   r = await call("GET", "/tickets/" + tk, owner.tok);
-  ok(r.j.comments.length === 3 && r.j.estimateKobo === 1_500_000 && r.j.vendor.name === "Emeka Plumbing", "owner sees internal notes, estimate and vendor");
+  ok(r.j.comments.length === 3 && r.j.estimateNaira === 15_000 && r.j.vendor.name === "Emeka Plumbing", "owner sees internal notes, estimate and vendor");
   r = await call("POST", `/tickets/${tk}/status`, mgr.tok, { status: "IN_PROGRESS" }); ok(r.s === 200, "manager moves to in progress");
   r = await call("PATCH", `/tickets/${tk}`, mgr.tok, { costNaira: 12500 }); ok(r.s === 200, "final cost recorded");
   r = await call("POST", `/tickets/${tk}/status`, mgr.tok, { status: "RESOLVED" }); ok(r.s === 200, "manager marks resolved");
@@ -187,7 +187,7 @@ async function main() {
 
   console.log("\n— REPORTS FOR OWNERS");
   r = await call("GET", "/insights/summary", owner.tok);
-  ok(r.s === 200 && r.j.maintenance.totalCostKobo === 1_250_000 && r.j.occupancyRate === 50, "owner summary: cost total and occupancy");
+  ok(r.s === 200 && r.j.maintenance.totalCostNaira === 12_500 && r.j.occupancyRate === 50, "owner summary: cost total and occupancy");
   ok(r.j.rent !== null, "owner sees rent section");
   r = await call("GET", "/insights/summary", mgr.tok); ok(r.s === 200 && r.j.rent === null, "manager without payout rights sees no rent figures");
   r = await call("GET", "/insights/export/rent.csv", mgr.tok); ok(r.s === 403, "manager cannot export rent");

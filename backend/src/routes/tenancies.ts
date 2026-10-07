@@ -20,7 +20,7 @@ r.get("/mine", async (req, res) => {
     orderBy: { endsAt: "asc" }, take: 200,
     include: { unit: { select: { id: true, title: true, property: { select: { name: true } } } }, tenant: { select: { fullName: true, phone: true } } } });
   res.json(rows.map((t) => ({ id: t.id, unit: t.unit, tenant: tenant ? undefined : t.tenant, startsAt: t.startsAt, endsAt: t.endsAt, daysLeft: Math.ceil((t.endsAt.getTime() - Date.now()) / 86_400_000),
-    active: t.active, endedAt: t.endedAt, rentKobo: t.rentKobo, renewedCount: t.renewedCount, moveInConfirmedAt: t.moveInConfirmedAt, issued: !!t.agreementUrl, agreementUrl: `/api/tenancies/${t.id}/agreement` })));
+    active: t.active, endedAt: t.endedAt, rentNaira: t.rentNaira, renewedCount: t.renewedCount, moveInConfirmedAt: t.moveInConfirmedAt, issued: !!t.agreementUrl, agreementUrl: `/api/tenancies/${t.id}/agreement` })));
 });
 
 r.post("/:id/confirm-move-in", requireRole("TENANT"), async (req, res) => {
@@ -55,7 +55,7 @@ r.post("/:id/end", requireRole("OWNER", "MANAGER"), async (req, res) => {
   if (!rights.canApprove) throw new Fail(403, "Not allowed");
   if (!t.active) throw new Fail(409, "This tenancy has already ended");
   if (await prisma.paymentToken.findFirst({ where: { tenancyId: t.id, status: { in: ["ACTIVE", "PAYMENT_CLAIMED", "DISPUTED"] } } })) throw new Fail(409, "A renewal payment is in progress. Resolve it first.");
-  const canRelist = p.data.relist && t.unit.rentKobo > 0 && t.unit.images.length >= 3 && (await isPropertyListable(t.unit.propertyId));
+  const canRelist = p.data.relist && t.unit.rentNaira > 0 && t.unit.images.length >= 3 && (await isPropertyListable(t.unit.propertyId));
   await prisma.$transaction([
     prisma.tenancy.update({ where: { id: t.id }, data: { active: false, endedAt: new Date() } }),
     prisma.unit.updateMany({ where: { id: t.unitId, status: "OCCUPIED" }, data: { status: canRelist ? "AVAILABLE" : "DRAFT" } }),

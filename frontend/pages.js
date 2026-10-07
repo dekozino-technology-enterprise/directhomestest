@@ -143,17 +143,6 @@ EXTRA.property = async (id) => {
 FORMS.pdoc = async (f) => { const k = await up(f.file); await api(`properties/${f.id}/documents`, { body: { docType: f.docType, fileKey: k.key } }); say("Uploaded"); EXTRA.property(f.id); };
 FORMS.house = async (f) => { await api(`properties/${f.id}/houses`, { body: { kind: "HOUSE", name: f.name, address: f.address, declaredUnits: Number(f.declaredUnits) } }); say("House added"); EXTRA.property(f.id); };
 FORMS.mgr = async (f) => { const k = await up(f.file), b = { managerEmail: f.managerEmail, authorisationKey: k.key }; for (const x of ["canListUnits", "canSetPrice", "canApproveTokens", "canReceivePayments", "canViewPayouts"]) b[x] = !!f[x]; await api(`properties/${f.id}/managers`, { body: b }); say("Manager appointed (pending admin approval of the letter)"); EXTRA.property(f.id); };
-EXTRA.unitnew = async (pid) => {
-  const m = await api("public/meta");
-  app.innerHTML = `<h2>Add a unit</h2><form data-form="unit" class="col card"><input type="hidden" name="propertyId" value="${esc(pid)}">${L("Type", `<select name="unitTypeId">${opts(m.unitTypes.map((t) => [t.id, t.name]))}</select>`)}${inp("title", "Title, e.g. Newly built 2-bedroom flat")}${L("Description", '<textarea name="description"></textarea>')}${inp("rentNaira", "Rent (₦)", "number", 'min="0" required')}${inp("cautionNaira", "Caution fee (₦)", "number", 'min="0" value="0"')}${inp("serviceChargeNaira", "Service charge (₦)", "number", 'min="0" value="0"')}${L("Pay every", `<select name="payDuration">${opts([["ANNUAL", "Year"], ["BIANNUAL", "6 months"], ["QUARTERLY", "3 months"], ["MONTHLY", "Month"]])}</select>`)}${inp("bedrooms", "Bedrooms", "number", 'min="0" value="1"')}${inp("bathrooms", "Bathrooms", "number", 'min="0" value="1"')}${inp("toilets", "Toilets", "number", 'min="0" value="1"')}<label><input type="checkbox" name="furnished" style="flex:none"> Furnished</label><label>Features</label><div class="row">${m.features.map((x) => `<label><input type="checkbox" name="f_${esc(x.id)}" style="flex:none"> ${esc(x.name)}</label>`).join("")}</div>${inp("photos", "Photos (at least 3, up to 15, 5MB each)", "file", 'accept="image/*" multiple required')}<button>Save unit</button></form>`;
-};
-FORMS.unit = async (f, el) => {
-  const files = [...el.photos.files].slice(0, 15), images = []; for (const x of files) images.push((await up(x, "units/images")).url);
-  const n = (k) => Number(f[k] || 0), featureIds = [...el.querySelectorAll("[name^=f_]:checked")].map((c) => c.name.slice(2));
-  await api("units", { body: { propertyId: f.propertyId, unitTypeId: f.unitTypeId, title: f.title, description: f.description || undefined, rentNaira: n("rentNaira"), cautionNaira: n("cautionNaira"), serviceChargeNaira: n("serviceChargeNaira"), payDuration: f.payDuration, bedrooms: n("bedrooms"), bathrooms: n("bathrooms"), toilets: n("toilets"), furnished: !!f.furnished, featureIds, images } });
-  say("Saved as a draft. Publish it from your dashboard."); location.hash = "#/dash";
-};
-
 // ---------- tenant pages ----------
 EXTRA.token = async (id) => {
   const t = await api("tokens/" + id);

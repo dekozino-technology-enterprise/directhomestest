@@ -33,8 +33,8 @@ r.get("/summary", async (req, res) => {
   const [units, tickets, resolved, paid, tenancies, expiring] = await Promise.all([
     prisma.unit.groupBy({ by: ["status"], where: scope, _count: { _all: true } }),
     prisma.maintenanceTicket.groupBy({ by: ["status"], where: { unit: scope }, _count: { _all: true } }),
-    prisma.maintenanceTicket.findMany({ where: { unit: scope, createdAt: { gte: from, lte: to } }, select: { category: true, costKobo: true, createdAt: true, resolvedAt: true, unitId: true } }),
-    moneyIds.length ? prisma.paymentToken.findMany({ where: { status: "PAID", confirmedAt: { gte: from, lte: to }, unit: { propertyId: { in: moneyIds } } }, select: { confirmedAt: true, rentKobo: true, cautionKobo: true, serviceChargeKobo: true, platformFeeKobo: true, unit: { select: { property: { select: { name: true } } } } } }) : Promise.resolve([]),
+    prisma.maintenanceTicket.findMany({ where: { unit: scope, createdAt: { gte: from, lte: to } }, select: { category: true, costNaira: true, createdAt: true, resolvedAt: true, unitId: true } }),
+    moneyIds.length ? prisma.paymentToken.findMany({ where: { status: "PAID", confirmedAt: { gte: from, lte: to }, unit: { propertyId: { in: moneyIds } } }, select: { confirmedAt: true, rentNaira: true, cautionNaira: true, serviceChargeNaira: true, platformFeeNaira: true, unit: { select: { property: { select: { name: true } } } } } }) : Promise.resolve([]),
     prisma.tenancy.count({ where: { active: true, unit: scope } }),
     prisma.tenancy.count({ where: { active: true, endsAt: { lt: new Date(Date.now() + 60 * DAY) }, unit: scope } }),
   ]);
@@ -51,8 +51,8 @@ r.get("/summary", async (req, res) => {
     units: u, occupancyRate: live ? Math.round(((u.OCCUPIED ?? 0) / live) * 1000) / 10 : null, vacant: u.AVAILABLE ?? 0, activeTenancies: tenancies, tenanciesEndingIn60Days: expiring,
     maintenance: { byStatus: tk, open: ACTIVE.reduce((s, k) => s + (tk[k] ?? 0), 0), raisedInPeriod: resolved.length, byCategory: cats,
       avgResolutionHours: done.length ? Math.round(done.reduce((s, t) => s + (t.resolvedAt!.getTime() - t.createdAt.getTime()) / 3_600_000, 0) / done.length) : null,
-      totalCostKobo: resolved.reduce((s, t) => s + (t.costKobo ?? 0), 0), recurring: Object.entries(perUnit).flatMap(([unitId, c]) => Object.entries(c).filter(([, n]) => n >= 3).map(([category, n]) => ({ unitId, category, tickets: n }))) },
-    rent: moneyIds.length ? { totalKobo: paid.reduce((s, t) => s + totalOf(t), 0), payments: paid.length, byMonth: Object.entries(months).sort().map(([month, kobo]) => ({ month, kobo })), byProperty: Object.entries(props).map(([property, kobo]) => ({ property, kobo })) } : null,
+      totalCostNaira: resolved.reduce((s, t) => s + (t.costNaira ?? 0), 0), recurring: Object.entries(perUnit).flatMap(([unitId, c]) => Object.entries(c).filter(([, n]) => n >= 3).map(([category, n]) => ({ unitId, category, tickets: n }))) },
+    rent: moneyIds.length ? { totalNaira: paid.reduce((s, t) => s + totalOf(t), 0), payments: paid.length, byMonth: Object.entries(months).sort().map(([month, naira]) => ({ month, naira })), byProperty: Object.entries(props).map(([property, naira]) => ({ property, naira })) } : null,
   });
 });
 
@@ -64,11 +64,11 @@ r.get("/export/:what.csv", async (req, res) => {
     if (!ids.length) return res.status(403).json({ error: "You don't have access to payment records" });
     const x = await prisma.paymentToken.findMany({ where: { status: "PAID", confirmedAt: { gte: from, lte: to }, unit: { propertyId: { in: ids } } }, orderBy: { confirmedAt: "asc" }, take: 20_000, include: { unit: { select: { title: true, property: { select: { name: true } } } }, tenant: { select: { fullName: true } } } });
     headers = ["confirmed_at", "code", "kind", "property", "unit", "tenant", "rent_naira", "caution_naira", "service_charge_naira", "total_naira"];
-    rows = x.map((t) => [t.confirmedAt, t.code, t.kind, t.unit.property.name, t.unit.title, t.tenant.fullName, t.rentKobo / 100, t.cautionKobo / 100, t.serviceChargeKobo / 100, totalOf(t) / 100]);
+    rows = x.map((t) => [t.confirmedAt, t.code, t.kind, t.unit.property.name, t.unit.title, t.tenant.fullName, t.rentNaira, t.cautionNaira, t.serviceChargeNaira, totalOf(t)]);
   } else if (req.params.what === "tickets") {
     const x = await prisma.maintenanceTicket.findMany({ where: { unit: unitScope(id, role), createdAt: { gte: from, lte: to } }, orderBy: { createdAt: "asc" }, take: 20_000, include: { unit: { select: { title: true, property: { select: { name: true } } } }, vendor: { select: { name: true } } } });
     headers = ["created_at", "property", "unit", "category", "urgency", "status", "vendor", "estimate_naira", "cost_naira", "resolved_at"];
-    rows = x.map((t) => [t.createdAt, t.unit.property.name, t.unit.title, t.category, t.urgency, t.status, t.vendor?.name ?? "", t.estimateKobo === null ? "" : t.estimateKobo / 100, t.costKobo === null ? "" : t.costKobo / 100, t.resolvedAt]);
+    rows = x.map((t) => [t.createdAt, t.unit.property.name, t.unit.title, t.category, t.urgency, t.status, t.vendor?.name ?? "", t.estimateNaira === null ? "" : t.estimateNaira, t.costNaira === null ? "" : t.costNaira, t.resolvedAt]);
   } else return res.status(404).json({ error: "Choose rent or tickets" });
   res.type("text/csv").set("Content-Disposition", `attachment; filename="${req.params.what}-${to.toISOString().slice(0, 10)}.csv"`).send(toCsv(headers, rows));
 });

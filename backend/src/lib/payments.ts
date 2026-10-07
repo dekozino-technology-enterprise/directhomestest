@@ -4,14 +4,19 @@ import { addMonths, graceEnd } from "./fees";
 
 export const paystackConfigured = () => !!process.env.PAYSTACK_SECRET_KEY;
 
-export async function initCheckout(email: string, amountKobo: number, reference: string, meta: object) {
+// Paystack's API takes amounts as an integer in the currency's smallest unit (100 per naira).
+// This is the only place that unit exists; everything else in the app is whole naira.
+export const PAYSTACK_UNITS_PER_NAIRA = 100;
+export const fromPaystackAmount = (amount: number) => amount / PAYSTACK_UNITS_PER_NAIRA;
+
+export async function initCheckout(email: string, amountNaira: number, reference: string, meta: object) {
   // Paystack must return the user to the static frontend, not the API host. WEB_ORIGIN
   // may list multiple allowed browser origins; use the primary one for the callback.
   const callbackUrl = process.env.WEB_ORIGIN?.split(",")[0]?.trim();
   const r = await fetch("https://api.paystack.co/transaction/initialize", {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ email, amount: amountKobo, reference, currency: "NGN", ...(callbackUrl ? { callback_url: callbackUrl } : {}), metadata: meta }),
+    body: JSON.stringify({ email, amount: amountNaira * PAYSTACK_UNITS_PER_NAIRA, reference, currency: "NGN", ...(callbackUrl ? { callback_url: callbackUrl } : {}), metadata: meta }),
   });
   const d: any = await r.json();
   if (!r.ok || !d.status) throw new Error("Could not start payment");
@@ -25,10 +30,10 @@ export function validSignature(raw: Buffer, sig?: string) {
 }
 
 // Idempotent: safe if Paystack retries the webhook. Amount is checked against OUR record, never the client's.
-export async function settlePayment(reference: string, paidKobo: number, payload?: object) {
+export async function settlePayment(reference: string, paidNaira: number, payload?: object) {
   const tx = await prisma.transaction.findUnique({ where: { reference } });
   if (!tx) return "unknown";
-  if (paidKobo !== tx.amountKobo) { await prisma.transaction.updateMany({ where: { id: tx.id, status: "PENDING" }, data: { status: "FAILED", rawWebhook: payload as any } }); return "mismatch"; }
+  if (paidNaira !== tx.amountNaira) { await prisma.transaction.updateMany({ where: { id: tx.id, status: "PENDING" }, data: { status: "FAILED", rawWebhook: payload as any } }); return "mismatch"; }
   const claim = await prisma.transaction.updateMany({ where: { id: tx.id, status: { not: "SUCCESS" } }, data: { status: "SUCCESS", rawWebhook: payload as any } });
   if (claim.count === 0) return "duplicate";
 

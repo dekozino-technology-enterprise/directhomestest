@@ -83,7 +83,7 @@ Flow:
   2. Owner (or a manager with canApproveTokens) approves: POST /api/tokens/:id/approve {accountId?, hours?}
      -> unit becomes RESERVED (gone from search), a code like HM-K7QX2M is issued, and ONLY NOW the tenant can see the account name/number, the exact total and the deadline (default 48h)
   3. Tenant pays by bank transfer using the code as narration, then reports it: POST /api/tokens/:id/claim (multipart: reference and/or file = transfer receipt)
-  4. The receiver checks their bank and confirms: POST /api/tokens/:id/confirm {amountKobo}  (must equal the total due)
+  4. The receiver checks their bank and confirms: POST /api/tokens/:id/confirm {amountNaira}  (must equal the total due)
      -> unit OCCUPIED, tenancy created (length from the unit's payment duration), agreement PDF saved, receipt available, competing requests auto-cancelled, ledger row written (channel BANK_TRANSFER)
 
 Token states: REQUESTED -> ACTIVE -> PAYMENT_CLAIMED -> PAID, with side exits REJECTED, CANCELLED, EXPIRED, DISPUTED.

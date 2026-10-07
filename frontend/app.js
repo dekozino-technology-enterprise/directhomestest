@@ -4,6 +4,15 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const user = () => { try { return JSON.parse(localStorage.getItem("u")); } catch { return null; } };
 const arr = (d) => Array.isArray(d) ? d : d && typeof d === "object" ? [d.items, d.results, d.tokens, d.tenancies, d.tickets, d.properties, d.units, d.viewings].find(Array.isArray) || [] : [];
 const naira = (n) => "₦" + Number(n || 0).toLocaleString("en-NG", { maximumFractionDigits: 0 });
+// Money is whole naira everywhere: no kobo, no decimals.
+const cleanNaira = (v) => String(v ?? "").split(".")[0].replace(/\D/g, "");
+const wholeNaira = (v) => Number(cleanNaira(v) || 0);
+const nairaField = (name, label, value = "", required = false) =>
+  L(label, `<input name="${name}" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" data-naira placeholder="0" ${required ? "required" : ""} value="${esc(value)}">`);
+document.addEventListener("input", (e) => {
+  const el = e.target;
+  if (el && el.matches && el.matches("input[data-naira]")) { const c = cleanNaira(el.value); if (c !== el.value) el.value = c; }
+});
 const humanize = (s) => String(s ?? "").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 const mediaUrl = (raw) => {
   const path = typeof raw === "string" ? raw : raw?.url || "";
@@ -14,8 +23,8 @@ const img = (u = {}) => {
   const src = mediaUrl(raw);
   return src ? `<img class="listing-image" loading="lazy" decoding="async" src="${esc(src)}" alt="${esc(u.title || "Home listing")}">` : `<div class="photo-placeholder" aria-label="No property photo"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="m7 22 17-14 17 14v17a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V22Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M19 41V26h10v15M4 22 24 5l20 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
 };
-const prices = (u = {}) => Object.entries(u).filter(([k, v]) => /rent|total|caution|service/i.test(k) && typeof v === "number").map(([k, v]) => `<span class="price-line"><span>${esc(humanize(k))}</span><b>${naira(/Kobo$/i.test(k) ? v / 100 : v)}</b></span>`).join("");
-const kv = (o = {}) => Object.entries(o || {}).filter(([k, v]) => v !== null && typeof v !== "object" && !/^id$|Id$|password/i.test(k)).map(([k, v]) => `<div class="kv-row"><span>${esc(humanize(k))}</span><b>${esc(typeof v === "boolean" ? (v ? "Yes" : "No") : v)}</b></div>`).join("");
+const prices = (u = {}) => Object.entries(u).filter(([k, v]) => /rent|total|caution|service/i.test(k) && typeof v === "number").map(([k, v]) => `<span class="price-line"><span>${esc(humanize(k.replace(/Naira$/, "")))}</span><b>${naira(v)}</b></span>`).join("");
+const kv = (o = {}) => Object.entries(o || {}).filter(([k, v]) => v !== null && typeof v !== "object" && !/^id$|Id$|password/i.test(k)).map(([k, v]) => `<div class="kv-row"><span>${esc(humanize(k.replace(/Naira$/, "")))}</span><b>${esc(typeof v === "boolean" ? (v ? "Yes" : "No") : /Naira$/.test(k) && typeof v === "number" ? naira(v) : v)}</b></div>`).join("");
 const say = (m) => { const t = document.getElementById("toast"); if (!t) return; t.textContent = m; t.style.display = "block"; clearTimeout(window.__toastTimer); window.__toastTimer = setTimeout(() => (t.style.display = "none"), 3800); };
 const logout = () => { localStorage.clear(); location.hash = "#/login"; nav(); };
 
@@ -54,8 +63,8 @@ async function search() {
     <div class="search-toolbar"><div><p class="eyebrow"><span class="eyebrow-dot"></span> A better way to rent</p><h1>Find a place to call home.</h1><p>Browse homes listed directly by owners. No agents, no viewing fees.</p></div><span class="search-trust">✓ Owner-direct listings</span></div>
     <form id="sf" class="filter-panel"><div class="filter-grid">
       <label for="search-q">Area, city or keyword<input id="search-q" name="q" placeholder="e.g. Lekki, Abuja, Wuse" value="${esc(f.get("q") || "")}"></label>
-      <label for="search-min">Minimum rent<input id="search-min" name="minRent" type="number" min="0" placeholder="Any" value="${esc(f.get("minRent") || "")}"></label>
-      <label for="search-max">Maximum rent<input id="search-max" name="maxRent" type="number" min="0" placeholder="Any" value="${esc(f.get("maxRent") || "")}"></label>
+      <label for="search-min">Minimum rent<input id="search-min" name="minRent" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" data-naira placeholder="Any" value="${esc(f.get("minRent") || "")}"></label>
+      <label for="search-max">Maximum rent<input id="search-max" name="maxRent" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" data-naira placeholder="Any" value="${esc(f.get("maxRent") || "")}"></label>
       <label for="search-beds">Bedrooms<input id="search-beds" name="bedrooms" type="number" min="0" placeholder="Any" value="${esc(f.get("bedrooms") || "")}"></label>
       <button type="submit">Search homes <span aria-hidden="true">→</span></button>
     </div></form>
@@ -80,7 +89,7 @@ async function search() {
   count.textContent = `${rows.length} verified ${rows.length === 1 ? "home" : "homes"}`;
   result.innerHTML = rows.map((u) => {
     const locationName = u.location?.name || u.locationName || u.area || u.address || "Nigeria";
-    const rent = u.rentNaira ?? u.rent ?? (u.rentKobo != null ? Number(u.rentKobo) / 100 : null);
+    const rent = u.rentNaira ?? u.rent ?? null;
     const facts = [[u.bedrooms, "bedrooms"], [u.bathrooms, "bathrooms"]].filter(([v]) => v !== null && v !== undefined).map(([v, label]) => `<span>${esc(v)} ${label}</span>`).join("");
     const price = rent !== null ? `<div class="listing-price"><strong>${naira(rent)}</strong><span>per ${esc(String(u.payDuration || "year").toLowerCase())}</span></div>` : `<div class="listing-price">${prices(u) || `<span>Contact owner for rent</span>`}</div>`;
     return `<a class="listing-card" href="#/unit/${esc(u.id)}" aria-label="View ${esc(u.title || "home listing")}">
@@ -97,7 +106,7 @@ async function unit(id) {
     const src = mediaUrl(raw);
     return src ? `<img src="${esc(src)}" alt="${esc(u.title || "Home")}${i ? ` — photo ${i + 1}` : ""}" loading="lazy">` : "";
   }).filter(Boolean).join("");
-  const rent = u.rentNaira ?? u.rent ?? (u.rentKobo != null ? Number(u.rentKobo) / 100 : null);
+  const rent = u.rentNaira ?? u.rent ?? null;
   const locationName = u.location?.name || u.locationName || u.area || u.address || "Nigeria";
   const facts = [[u.bedrooms, "bedrooms"], [u.bathrooms, "bathrooms"], [u.toilets, "toilets"]].filter(([v]) => v !== null && v !== undefined).map(([v, label]) => `<span class="tag">${esc(v)} ${label}</span>`).join("");
   app.innerHTML = `<section class="detail-page">
@@ -251,7 +260,7 @@ const A = {
   issue: async (unitId) => { const c = prompt("Category: PLUMBING, ROOFING_LEAKAGE, ELECTRICAL, WATER_PUMP, SANITATION, SECURITY, APPLIANCE, OTHER", "PLUMBING"), t = prompt("Short title:"), d = prompt("Describe the problem:"), ur = prompt("Urgency: low, medium, high, emergency", "medium"); if (c && t && d) await api("tickets", { body: { unitId, category: c, title: t, description: d, urgency: (ur || "medium").toUpperCase() } }); },
   approve: (id) => api(`tokens/${id}/approve`, { body: {} }),
   reject: (id) => api(`tokens/${id}/reject`, { body: { reason: prompt("Reason:") || "Not available" } }),
-  confirmpay: (id) => api(`tokens/${id}/confirm`, { body: { amountKobo: Math.round(Number(prompt("Amount received in naira (must equal the total due):")) * 100) } }),
+  confirmpay: (id) => api(`tokens/${id}/confirm`, { body: { amountNaira: wholeNaira(prompt("Amount received in naira (must equal the total due):")) } }),
   notrec: (id) => api(`tokens/${id}/not-received`, { body: {} }),
   tstat: (id, x) => api(`tickets/${id}/status`, { body: { status: x } }),
   payfee: (id) => startPropertyPayment(id, "pay"),

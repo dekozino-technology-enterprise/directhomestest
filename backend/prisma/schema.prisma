@@ -212,7 +212,7 @@ model OnboardingFeeTier {
   kind        PropertyKind
   minUnits    Int                  @default(1)
   maxUnits    Int?
-  amountKobo  Int
+  amountNaira  Int
   active      Boolean              @default(true)
   onboardings PropertyOnboarding[]
 }
@@ -255,7 +255,7 @@ model PropertyOnboarding {
   tierId        String
   tier          OnboardingFeeTier @relation(fields: [tierId], references: [id])
   transactionId String?           @unique
-  amountKobo    Int
+  amountNaira    Int
   paidAt        DateTime?
   approvedAt    DateTime?
   startsAt      DateTime?
@@ -327,9 +327,9 @@ model Unit {
   unitType          UnitType    @relation(fields: [unitTypeId], references: [id])
   title             String
   description       String?
-  rentKobo          Int
-  cautionKobo       Int         @default(0)
-  serviceChargeKobo Int         @default(0)
+  rentNaira          Int
+  cautionNaira       Int         @default(0)
+  serviceChargeNaira Int         @default(0)
   payDuration       PayDuration @default(ANNUAL)
   bedrooms          Int         @default(0)
   bathrooms         Int         @default(0)
@@ -353,7 +353,7 @@ model Unit {
   reports    Report[]
 
   @@index([status, propertyId])
-  @@index([rentKobo])
+  @@index([rentNaira])
 }
 
 model UnitImage {
@@ -438,10 +438,10 @@ model PaymentToken {
   tenantId            String
   tenant              User        @relation("TenantTokens", fields: [tenantId], references: [id])
   tenancyId           String?
-  rentKobo            Int
-  cautionKobo         Int         @default(0)
-  serviceChargeKobo   Int         @default(0)
-  platformFeeKobo     Int         @default(0)
+  rentNaira            Int
+  cautionNaira         Int         @default(0)
+  serviceChargeNaira   Int         @default(0)
+  platformFeeNaira     Int         @default(0)
   moveInDate          DateTime?
   tenantNote          String?
   status              TokenStatus @default(REQUESTED)
@@ -475,7 +475,7 @@ model Transaction {
   userId        String
   purpose       PaymentPurpose
   reference     String         @unique
-  amountKobo    Int
+  amountNaira    Int
   status        PaymentStatus  @default(PENDING)
   channel       String         @default("PAYSTACK")
   tokenId       String?        @unique
@@ -494,7 +494,7 @@ model Tenancy {
   tenantId          String
   tenant            User        @relation(fields: [tenantId], references: [id])
   tokenId           String?     @unique
-  rentKobo          Int         @default(0)
+  rentNaira          Int         @default(0)
   payDuration       PayDuration @default(ANNUAL)
   startsAt          DateTime
   endsAt            DateTime
@@ -522,8 +522,8 @@ model MaintenanceTicket {
   status         TicketStatus       @default(OPEN)
   vendorId       String?
   vendor         Vendor?            @relation(fields: [vendorId], references: [id])
-  estimateKobo   Int?
-  costKobo       Int?
+  estimateNaira   Int?
+  costNaira       Int?
   escalated      Boolean            @default(false)
   escalatedAt    DateTime?
   acknowledgedAt DateTime?

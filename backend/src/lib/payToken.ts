@@ -6,10 +6,10 @@ import { notify, staffOf } from "./access";
 import { writeAgreement } from "./pdf";
 
 export const MONTHS: Record<PayDuration, number> = { MONTHLY: 1, QUARTERLY: 3, BIANNUAL: 6, ANNUAL: 12 };
-export const totalOf = (t: { rentKobo: number; cautionKobo: number; serviceChargeKobo: number; platformFeeKobo: number }) =>
-  t.rentKobo + t.cautionKobo + t.serviceChargeKobo + t.platformFeeKobo;
-export const naira = (k: number) => "₦" + (k / 100).toLocaleString("en-NG");
-export const breakdown = (t: Parameters<typeof totalOf>[0]) => ({ rentKobo: t.rentKobo, cautionKobo: t.cautionKobo, serviceChargeKobo: t.serviceChargeKobo, totalKobo: totalOf(t) });
+export const totalOf = (t: { rentNaira: number; cautionNaira: number; serviceChargeNaira: number; platformFeeNaira: number }) =>
+  t.rentNaira + t.cautionNaira + t.serviceChargeNaira + t.platformFeeNaira;
+export const naira = (n: number) => "₦" + n.toLocaleString("en-NG", { maximumFractionDigits: 0 });
+export const breakdown = (t: Parameters<typeof totalOf>[0]) => ({ rentNaira: t.rentNaira, cautionNaira: t.cautionNaira, serviceChargeNaira: t.serviceChargeNaira, totalNaira: totalOf(t) });
 export const OPEN_STATUSES = ["REQUESTED", "ACTIVE", "PAYMENT_CLAIMED", "DISPUTED"] as const;
 
 // Short code the tenant writes as the transfer narration: no 0/O/1/I so it survives being read aloud or typed from a screenshot.
@@ -75,7 +75,7 @@ export async function completeToken(tokenId: string, confirmerId: string) {
       const u = await tx.unit.updateMany({ where: { id: t.unitId, status: { in: ["RESERVED", "AVAILABLE"] } }, data: { status: "OCCUPIED" } });
       if (u.count === 0) throw new Fail(409, "The unit is no longer free. Cancel this token instead.");
       const startsAt = t.moveInDate && t.moveInDate > now ? t.moveInDate : now;
-      const ten = await tx.tenancy.create({ data: { unitId: t.unitId, tenantId: t.tenantId, tokenId: t.id, rentKobo: t.rentKobo, payDuration: t.unit.payDuration, startsAt, endsAt: addMonths(startsAt, months) } });
+      const ten = await tx.tenancy.create({ data: { unitId: t.unitId, tenantId: t.tenantId, tokenId: t.id, rentNaira: t.rentNaira, payDuration: t.unit.payDuration, startsAt, endsAt: addMonths(startsAt, months) } });
       tenancyId = ten.id;
       await tx.paymentToken.updateMany({ where: { unitId: t.unitId, id: { not: t.id }, status: "REQUESTED" }, data: { status: "CANCELLED", rejectReason: "This unit has been rented to another applicant" } });
     } else {
@@ -84,7 +84,7 @@ export async function completeToken(tokenId: string, confirmerId: string) {
       await tx.tenancy.update({ where: { id: ten.id }, data: { endsAt: addMonths(ten.endsAt > now ? ten.endsAt : now, months), renewedCount: { increment: 1 } } });
       tenancyId = ten.id;
     }
-    await tx.transaction.create({ data: { userId: t.tenantId, purpose: t.kind === "RENEWAL" ? "RENEWAL" : "RENT", reference: t.code ?? t.id, amountKobo: total, status: "SUCCESS", channel: "BANK_TRANSFER", tokenId: t.id, confirmedById: confirmerId } });
+    await tx.transaction.create({ data: { userId: t.tenantId, purpose: t.kind === "RENEWAL" ? "RENEWAL" : "RENT", reference: t.code ?? t.id, amountNaira: total, status: "SUCCESS", channel: "BANK_TRANSFER", tokenId: t.id, confirmedById: confirmerId } });
     return { t, tenancyId, total };
   });
 
@@ -92,5 +92,5 @@ export async function completeToken(tokenId: string, confirmerId: string) {
   const staff = await staffOf(t.unit.propertyId);
   await notify([t.tenantId], "PAYMENT", "Payment confirmed", t.kind === "RENEWAL" ? `Your renewal for "${t.unit.title}" is confirmed.` : `Your payment of ${naira(total)} for "${t.unit.title}" is confirmed. The unit is yours. Your receipt is ready, and your landlord will issue your tenancy agreement.`);
   await notify(staff, "PAYMENT", "Rent payment confirmed", `${naira(total)} for "${t.unit.title}" (${t.code}).${t.kind === "NEW_TENANCY" ? " Open Agreements to issue the tenancy agreement to this tenant." : ""}`);
-  return { tenancyId, totalKobo: total };
+  return { tenancyId, totalNaira: total };
 }

@@ -123,6 +123,6 @@ r.delete("/favourites/:unitId", requireRole("TENANT"), async (req, res) => {
   res.json({ saved: false });
 });
 r.get("/favourites", requireRole("TENANT"), async (req, res) =>
-  res.json(await prisma.favourite.findMany({ where: { userId: req.user!.id }, include: { unit: { select: { id: true, title: true, rentKobo: true, status: true } } } })));
+  res.json(await prisma.favourite.findMany({ where: { userId: req.user!.id }, include: { unit: { select: { id: true, title: true, rentNaira: true, status: true } } } })));
 
 export default r;

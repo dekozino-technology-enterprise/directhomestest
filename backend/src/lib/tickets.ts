@@ -48,7 +48,7 @@ export async function ticketView({ t, kind }: LoadedTicket) {
     createdAt: t.createdAt, acknowledgedAt: t.acknowledgedAt, resolvedAt: t.resolvedAt, closedAt: t.closedAt, reopenedCount: t.reopenedCount,
     escalated: t.escalated, escalatedAt: t.escalatedAt,
     vendor: t.vendor ? (seeAll ? { id: t.vendor.id, name: t.vendor.name, trade: t.vendor.trade, phone: t.vendor.phone } : { name: t.vendor.name, trade: t.vendor.trade }) : null,
-    ...(seeAll ? { tenant: t.tenant, estimateKobo: t.estimateKobo, costKobo: t.costKobo } : {}),
+    ...(seeAll ? { tenant: t.tenant, estimateNaira: t.estimateNaira, costNaira: t.costNaira } : {}),
     comments: t.comments.filter((c) => seeAll || !c.internal).map((c) => ({ id: c.id, body: c.body, internal: c.internal, at: c.createdAt, by: who.get(c.authorId)?.fullName ?? "User", role: who.get(c.authorId)?.role ?? null })),
     attachments: t.attachments.map((a) => ({ id: a.id, phase: a.phase, url: `/api/tickets/${t.id}/files/${a.id}`, at: a.createdAt })),
   };

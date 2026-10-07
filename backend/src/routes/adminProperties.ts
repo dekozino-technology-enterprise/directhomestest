@@ -22,7 +22,7 @@ r.get("/properties/:id", async (req, res) => {
   if (!p) return res.status(404).json({ error: "Not found" });
   const possibleDuplicates = await prisma.property.findMany({ where: { id: { not: p.id }, locationId: p.locationId, address: { equals: p.address, mode: "insensitive" }, status: { not: "REJECTED" } }, select: { id: true, name: true, status: true } });
   const t = await pickTier(p.kind, p.declaredUnits);
-  res.json({ ...p, possibleDuplicates, feeDue: t ? { name: t.name, amountKobo: t.amountKobo } : null });
+  res.json({ ...p, possibleDuplicates, feeDue: t ? { name: t.name, amountNaira: t.amountNaira } : null });
 });
 
 r.post("/properties/:id/documents/:docId/decision", async (req, res) => {

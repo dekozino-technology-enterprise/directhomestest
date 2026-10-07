@@ -35,13 +35,13 @@ async function main() {
   await prisma.kycRecord.create({ data: { userId: mgr.id, idType: "NIN", idNumberHash: "h2", idDocumentUrl: "x", selfieUrl: "y", status: "VERIFIED" } });
   const loc = await prisma.location.create({ data: { name: "Lagos", level: "STATE" } });
   const ut = await prisma.unitType.create({ data: { name: "Self-Contain" } });
-  const tier = await prisma.onboardingFeeTier.create({ data: { name: "t", kind: "HOUSE", amountKobo: 1000 } });
+  const tier = await prisma.onboardingFeeTier.create({ data: { name: "t", kind: "HOUSE", amountNaira: 10 } });
   const prop = await prisma.property.create({ data: { kind: "BUILDING", name: "Palm Court", address: "1 Palm St", locationId: loc.id, ownerId: owner.id, status: "ACTIVE", declaredUnits: 10 } });
-  await prisma.propertyOnboarding.create({ data: { propertyId: prop.id, tierId: tier.id, amountKobo: 1000, paidAt: new Date(), startsAt: new Date(), expiresAt: new Date(Date.now() + 300 * DAY), graceEndsAt: new Date(Date.now() + 314 * DAY) } });
+  await prisma.propertyOnboarding.create({ data: { propertyId: prop.id, tierId: tier.id, amountNaira: 10, paidAt: new Date(), startsAt: new Date(), expiresAt: new Date(Date.now() + 300 * DAY), graceEndsAt: new Date(Date.now() + 314 * DAY) } });
   await prisma.managerAssignment.create({ data: { propertyId: prop.id, managerId: mgr.id, canApproveTokens: true, canReceivePayments: false } });
-  const mkUnit = async (title: string, rent = 50_000_00) => prisma.unit.create({ data: { propertyId: prop.id, unitTypeId: ut.id, title, rentKobo: rent, cautionKobo: 5_000_00, serviceChargeKobo: 2_000_00, status: "AVAILABLE", images: { create: [1, 2, 3].map((i) => ({ url: `/media/a${i}.jpg`, sortOrder: i })) } } });
+  const mkUnit = async (title: string, rent = 50_000) => prisma.unit.create({ data: { propertyId: prop.id, unitTypeId: ut.id, title, rentNaira: rent, cautionNaira: 5_000, serviceChargeNaira: 2_000, status: "AVAILABLE", images: { create: [1, 2, 3].map((i) => ({ url: `/media/a${i}.jpg`, sortOrder: i })) } } });
   const [uA, uB, uC, uD] = [await mkUnit("Unit A"), await mkUnit("Unit B"), await mkUnit("Unit C"), await mkUnit("Unit D")];
-  const TOTAL = 57_000_00;
+  const TOTAL = 57_000;
 
   console.log("\n— PAYEE ACCOUNTS");
   let r = await call("POST", "/accounts", owner.tok, { bankName: "GTBank", accountName: "OKAFOR CHINEDU", accountNumber: "0123456789" });
@@ -67,7 +67,7 @@ async function main() {
   console.log("\n— REQUESTING A TOKEN");
   ok(!(await prisma.user.findUnique({ where: { id: t1.id } }))!.phoneVerified, "test tenant has not verified a phone");
   r = await call("POST", "/tokens/request", t1.tok, { unitId: uA.id, note: "Hi" });
-  ok(r.s === 201 && r.j.totalKobo === TOTAL, "tenant without phone verification can request a token; total = rent+caution+service");
+  ok(r.s === 201 && r.j.totalNaira === TOTAL, "tenant without phone verification can request a token; total = rent+caution+service");
   const tok1 = r.j.id;
   r = await call("POST", "/tokens/request", owner.tok, { unitId: uA.id });
   ok(r.s === 403, "owners cannot request tokens");
@@ -129,20 +129,20 @@ async function main() {
   ok(r.s === 409, "owner cannot withdraw a token after payment was claimed");
   r = await call("GET", "/dashboard/staff", owner.tok);
   ok(r.j.paymentsToConfirm === 1 && r.j.pendingTokenRequests === 1, "owner dashboard counts: 1 to confirm, 1 pending request");
-  r = await call("POST", `/tokens/${tok1}/confirm`, mgr.tok, { amountKobo: TOTAL });
+  r = await call("POST", `/tokens/${tok1}/confirm`, mgr.tok, { amountNaira: TOTAL });
   ok(r.s === 403, "manager whose account was NOT paid cannot confirm");
-  r = await call("POST", `/tokens/${tok1}/confirm`, owner.tok, { amountKobo: TOTAL - 100 });
+  r = await call("POST", `/tokens/${tok1}/confirm`, owner.tok, { amountNaira: TOTAL - 1 });
   ok(r.s === 400, "wrong amount is refused");
-  r = await call("POST", `/tokens/${tok1}/confirm`, owner.tok, { amountKobo: TOTAL });
+  r = await call("POST", `/tokens/${tok1}/confirm`, owner.tok, { amountNaira: TOTAL });
   ok(r.s === 200 && r.j.status === "PAID", "owner confirms the exact amount");
-  r = await call("POST", `/tokens/${tok1}/confirm`, owner.tok, { amountKobo: TOTAL });
+  r = await call("POST", `/tokens/${tok1}/confirm`, owner.tok, { amountNaira: TOTAL });
   ok(r.s === 409, "confirming twice is rejected (idempotent)");
   ok((await prisma.unit.findUnique({ where: { id: uA.id } }))!.status === "OCCUPIED", "unit is OCCUPIED");
   const ten = (await prisma.tenancy.findFirst({ where: { tokenId: tok1 } }))!;
   ok(!!ten && ten.tenantId === t1.id && Math.round((ten.endsAt.getTime() - ten.startsAt.getTime()) / DAY) >= 364, "tenancy created for 12 months");
   ok((await prisma.paymentToken.findUnique({ where: { id: tok2 } }))!.status === "CANCELLED", "competing request auto-cancelled");
   const tx = await prisma.transaction.findMany({ where: { tokenId: tok1 } });
-  ok(tx.length === 1 && tx[0].channel === "BANK_TRANSFER" && tx[0].amountKobo === TOTAL && tx[0].status === "SUCCESS", "ledger row recorded as BANK_TRANSFER");
+  ok(tx.length === 1 && tx[0].channel === "BANK_TRANSFER" && tx[0].amountNaira === TOTAL && tx[0].status === "SUCCESS", "ledger row recorded as BANK_TRANSFER");
   r = await call("GET", `/tokens/${tok1}/receipt`, t1.tok);
   ok(r.s === 200 && r.buf!.subarray(0, 4).toString() === "%PDF", "receipt PDF generated");
   fs.writeFileSync("/tmp/receipt.pdf", r.buf!);
@@ -171,7 +171,7 @@ async function main() {
   ok(r.s === 200 && r.j.status === "PAYMENT_CLAIMED" && (await prisma.unit.findUnique({ where: { id: uB.id } }))!.status === "RESERVED", "late claim (unit still free) re-holds the unit");
   r = await call("POST", `/tokens/${tokB}/not-received`, owner.tok, { note: "nothing in my account" });
   ok(r.j.status === "DISPUTED", "owner says not received → DISPUTED");
-  r = await call("POST", `/tokens/${tokB}/confirm`, owner.tok, { amountKobo: TOTAL });
+  r = await call("POST", `/tokens/${tokB}/confirm`, owner.tok, { amountNaira: TOTAL });
   ok(r.s === 200, "owner can still confirm later if the bank credit shows up");
   ok((await prisma.unit.findUnique({ where: { id: uB.id } }))!.status === "OCCUPIED", "unit B occupied after late confirmation");
 
@@ -216,13 +216,13 @@ async function main() {
   r = await call("POST", "/tokens/renew", t2.tok, { tenancyId: ten.id });
   ok(r.s === 404, "other tenants cannot renew someone else's tenancy");
   r = await call("POST", "/tokens/renew", t1.tok, { tenancyId: ten.id });
-  ok(r.s === 201 && r.j.totalKobo === 52_000_00, "renewal total = rent + service charge (no new caution)");
+  ok(r.s === 201 && r.j.totalNaira === 52_000, "renewal total = rent + service charge (no new caution)");
   const tokR = r.j.id;
   r = await call("POST", `/tokens/${tokR}/approve`, owner.tok);
   ok(r.s === 200 && (await prisma.unit.findUnique({ where: { id: uA.id } }))!.status === "OCCUPIED", "renewal approved; unit stays OCCUPIED");
   fd = new FormData(); fd.set("reference", "TRF-RENEW"); await call("POST", `/tokens/${tokR}/claim`, t1.tok, undefined, fd);
   const before = (await prisma.tenancy.findUnique({ where: { id: ten.id } }))!.endsAt;
-  r = await call("POST", `/tokens/${tokR}/confirm`, owner.tok, { amountKobo: 52_000_00 });
+  r = await call("POST", `/tokens/${tokR}/confirm`, owner.tok, { amountNaira: 52_000 });
   const after = (await prisma.tenancy.findUnique({ where: { id: ten.id } }))!;
   ok(r.s === 200 && Math.round((after.endsAt.getTime() - before.getTime()) / DAY) >= 364 && after.renewedCount === 1, "renewal extends the END date by 12 months (no days lost)");
 

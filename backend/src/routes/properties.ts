@@ -61,7 +61,7 @@ r.get("/:id", async (req, res) => {
   res.json(await prisma.property.findUnique({
     where: { id: a.p.id },
     include: { location: true, children: { select: { id: true, name: true, kind: true, address: true, declaredUnits: true } }, documents: { select: { id: true, docType: true, status: true, rejectReason: true, createdAt: true } },
-      onboardings: { orderBy: { createdAt: "desc" }, select: { id: true, amountKobo: true, paidAt: true, startsAt: true, expiresAt: true, graceEndsAt: true, refundStatus: true } },
+      onboardings: { orderBy: { createdAt: "desc" }, select: { id: true, amountNaira: true, paidAt: true, startsAt: true, expiresAt: true, graceEndsAt: true, refundStatus: true } },
       managers: { include: { manager: { select: { fullName: true, email: true } } } } },
   }));
 });
@@ -85,10 +85,10 @@ async function startPayment(req: Request, res: Response, p: any, purpose: "ONBOA
   if (!tier) return res.status(400).json({ error: "No fee tier is configured for this property. Contact support." });
   const me = await prisma.user.findUnique({ where: { id: req.user!.id } });
   const reference = "PROP-" + crypto.randomBytes(8).toString("hex");
-  const tx = await prisma.transaction.create({ data: { userId: me!.id, purpose, reference, amountKobo: tier.amountKobo, propertyId: p.id } });
-  await prisma.propertyOnboarding.create({ data: { propertyId: p.id, tierId: tier.id, transactionId: tx.id, amountKobo: tier.amountKobo, renewedFromId } });
-  if (paystackConfigured()) return res.json({ reference, amountKobo: tier.amountKobo, authorizationUrl: await initCheckout(me!.email, tier.amountKobo, reference, { propertyId: p.id, purpose }) });
-  if (process.env.NODE_ENV === "development") return res.json({ reference, amountKobo: tier.amountKobo, devMode: true, note: "No Paystack key: use POST /pay/simulate" });
+  const tx = await prisma.transaction.create({ data: { userId: me!.id, purpose, reference, amountNaira: tier.amountNaira, propertyId: p.id } });
+  await prisma.propertyOnboarding.create({ data: { propertyId: p.id, tierId: tier.id, transactionId: tx.id, amountNaira: tier.amountNaira, renewedFromId } });
+  if (paystackConfigured()) return res.json({ reference, amountNaira: tier.amountNaira, authorizationUrl: await initCheckout(me!.email, tier.amountNaira, reference, { propertyId: p.id, purpose }) });
+  if (process.env.NODE_ENV === "development") return res.json({ reference, amountNaira: tier.amountNaira, devMode: true, note: "No Paystack key: use POST /pay/simulate" });
   res.status(503).json({ error: "Payments unavailable" });
 }
 r.post("/:id/pay", requireRole("OWNER"), async (req, res) => {
@@ -108,7 +108,7 @@ r.post("/:id/pay/simulate", requireRole("OWNER"), async (req, res) => {
   if (process.env.NODE_ENV !== "development" || paystackConfigured()) return res.status(404).end();
   const tx = await prisma.transaction.findUnique({ where: { reference: String(req.body?.reference) } });
   if (!tx || tx.userId !== req.user!.id || tx.propertyId !== req.params.id) return res.status(404).json({ error: "Not found" });
-  res.json({ result: await settlePayment(tx.reference, tx.amountKobo) });
+  res.json({ result: await settlePayment(tx.reference, tx.amountNaira) });
 });
 
 // ───── Submit for admin review ─────
@@ -137,7 +137,7 @@ r.post("/:id/houses", requireRole("OWNER"), async (req, res) => {
 r.get("/:id/fee", async (req, res) => {
   const a = await access(req); if (!a) return res.status(404).json({ error: "Not found" });
   const t = await pickTier(a.p.kind, a.p.declaredUnits);
-  res.json(t ? { tier: t.name, amountKobo: t.amountKobo } : { tier: null });
+  res.json(t ? { tier: t.name, amountNaira: t.amountNaira } : { tier: null });
 });
 
 // ───── Appoint a manager (needs the owner's signed authorisation letter + admin approval) ─────

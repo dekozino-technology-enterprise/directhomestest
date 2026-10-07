@@ -61,13 +61,13 @@ r.post("/request", requireRole("TENANT"), rateLimit({ windowMs: HOUR, max: 10 })
   if (!p.success) return res.status(400).json(p.error.flatten());
   const user = await prisma.user.findUnique({ where: { id: me(req) } });
   const unit = await prisma.unit.findFirst({ where: { id: p.data.unitId, status: "AVAILABLE", AND: liveConds() } });
-  if (!unit || unit.rentKobo <= 0) return res.status(404).json({ error: "This listing is no longer available" });
+  if (!unit || unit.rentNaira <= 0) return res.status(404).json({ error: "This listing is no longer available" });
   const moveIn = p.data.moveInDate ? new Date(p.data.moveInDate) : undefined;
   if (moveIn && (moveIn.getTime() < Date.now() - DAY || moveIn.getTime() > Date.now() + 120 * DAY)) return res.status(400).json({ error: "Choose a move-in date within the next 120 days" });
   if (await prisma.paymentToken.findFirst({ where: { unitId: unit.id, tenantId: me(req), status: { in: [...OPEN_STATUSES] } } })) return res.status(409).json({ error: "You already have an open request for this unit" });
   if ((await prisma.paymentToken.count({ where: { tenantId: me(req), status: { in: ["REQUESTED", "ACTIVE", "PAYMENT_CLAIMED"] } } })) >= 3) return res.status(400).json({ error: "You can have up to 3 open requests at a time. Cancel one first." });
 
-  const t = await prisma.paymentToken.create({ data: { unitId: unit.id, tenantId: me(req), rentKobo: unit.rentKobo, cautionKobo: unit.cautionKobo, serviceChargeKobo: unit.serviceChargeKobo, moveInDate: moveIn, tenantNote: p.data.note } });
+  const t = await prisma.paymentToken.create({ data: { unitId: unit.id, tenantId: me(req), rentNaira: unit.rentNaira, cautionNaira: unit.cautionNaira, serviceChargeNaira: unit.serviceChargeNaira, moveInDate: moveIn, tenantNote: p.data.note } });
   await notify(await staffOf(unit.propertyId), "TOKEN", "Payment token requested", `${user!.fullName} wants to rent "${unit.title}". Review and approve to share your account details.`);
   res.status(201).json({ id: t.id, status: t.status, ...breakdown(t) });
 });
@@ -79,9 +79,9 @@ r.post("/renew", requireRole("TENANT"), rateLimit({ windowMs: HOUR, max: 5 }), a
   const ten = await prisma.tenancy.findFirst({ where: { id: p.data.tenancyId, tenantId: me(req), active: true }, include: { unit: true } });
   if (!ten) return res.status(404).json({ error: "Tenancy not found" });
   if (ten.endsAt.getTime() > Date.now() + 90 * DAY) return res.status(400).json({ error: "You can renew within 90 days of the end date" });
-  if (ten.unit.rentKobo <= 0) return res.status(400).json({ error: "Rent is not set for this unit. Contact the landlord." });
+  if (ten.unit.rentNaira <= 0) return res.status(400).json({ error: "Rent is not set for this unit. Contact the landlord." });
   if (await prisma.paymentToken.findFirst({ where: { tenancyId: ten.id, kind: "RENEWAL", status: { in: [...OPEN_STATUSES] } } })) return res.status(409).json({ error: "A renewal is already in progress" });
-  const t = await prisma.paymentToken.create({ data: { kind: "RENEWAL", tenancyId: ten.id, unitId: ten.unitId, tenantId: me(req), rentKobo: ten.unit.rentKobo, serviceChargeKobo: ten.unit.serviceChargeKobo, tenantNote: p.data.note } });
+  const t = await prisma.paymentToken.create({ data: { kind: "RENEWAL", tenancyId: ten.id, unitId: ten.unitId, tenantId: me(req), rentNaira: ten.unit.rentNaira, serviceChargeNaira: ten.unit.serviceChargeNaira, tenantNote: p.data.note } });
   await notify(await staffOf(ten.unit.propertyId), "TOKEN", "Renewal requested", `A tenant asked to renew "${ten.unit.title}".`);
   res.status(201).json({ id: t.id, status: t.status, ...breakdown(t) });
 });
@@ -204,7 +204,7 @@ r.post("/:id/approve", requireRole("OWNER", "MANAGER"), async (req, res) => {
   if (!rights.canApprove) throw new Fail(403, "The owner has not allowed you to approve payment requests");
   if (t.status !== "REQUESTED") throw new Fail(409, `This request is already ${t.status.toLowerCase().replace("_", " ")}`);
   if (!(await isPropertyListable(t.unit.propertyId))) throw new Fail(400, "The property's yearly fee must be active before you can accept payments");
-  if (t.unit.rentKobo <= 0) throw new Fail(400, "Set the rent first");
+  if (t.unit.rentNaira <= 0) throw new Fail(400, "Set the rent first");
 
   let acc = p.data.accountId ? await accountUsable(p.data.accountId, rights.property, me(req)) : null;
   if (!p.data.accountId) {
@@ -231,7 +231,7 @@ r.post("/:id/approve", requireRole("OWNER", "MANAGER"), async (req, res) => {
         const u = await tx.paymentToken.updateMany({ where: { id: t.id, status: "REQUESTED" }, data: {
           status: "ACTIVE", code: c, expiresAt, approvedById: me(req), approvedAt: now,
           // Price is re-read from the unit at approval, so the tenant pays exactly what the listing says today
-          rentKobo: t.unit.rentKobo, cautionKobo: renewal ? 0 : t.unit.cautionKobo, serviceChargeKobo: t.unit.serviceChargeKobo,
+          rentNaira: t.unit.rentNaira, cautionNaira: renewal ? 0 : t.unit.cautionNaira, serviceChargeNaira: t.unit.serviceChargeNaira,
           payToUserId: acc!.userId, payBankName: acc!.bankName, payAccountName: acc!.accountName, payAccountNumberEnc: encrypt(accNo) } });
         if (u.count === 0) throw new Fail(409, "This request was just updated. Refresh and try again.");
       });
@@ -240,9 +240,9 @@ r.post("/:id/approve", requireRole("OWNER", "MANAGER"), async (req, res) => {
   }
   if (!code) throw new Fail(500, "Could not issue a code. Try again.");
   await prisma.enquiry.updateMany({ where: { unitId: t.unitId, tenantId: t.tenantId }, data: { contactShared: true, sharedById: me(req) } });
-  const total = t.unit.rentKobo + (renewal ? 0 : t.unit.cautionKobo) + t.unit.serviceChargeKobo;
+  const total = t.unit.rentNaira + (renewal ? 0 : t.unit.cautionNaira) + t.unit.serviceChargeNaira;
   await notify([t.tenantId], "TOKEN", "Request approved: pay now", `Pay ${naira(total)} for "${t.unit.title}" before ${expiresAt.toLocaleString("en-NG")}. Use code ${code} as the transfer narration. Open the app for the account details.`);
-  res.json({ status: "ACTIVE", code, expiresAt, totalKobo: total, payTo: { name: acc.accountName, bankName: acc.bankName, last4: acc.last4 } });
+  res.json({ status: "ACTIVE", code, expiresAt, totalNaira: total, payTo: { name: acc.accountName, bankName: acc.bankName, last4: acc.last4 } });
 });
 
 r.post("/:id/reject", requireRole("OWNER", "MANAGER"), async (req, res) => {
@@ -273,12 +273,12 @@ r.post("/:id/revoke", requireRole("OWNER", "MANAGER"), async (req, res) => {
 
 // Confirm the money arrived. Only the owner, or the manager whose account was paid. Typing the amount prevents blind clicks.
 r.post("/:id/confirm", requireRole("OWNER", "MANAGER"), async (req, res) => {
-  const p = z.object({ amountKobo: z.number().int() }).safeParse(req.body);
+  const p = z.object({ amountNaira: z.number().int() }).safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: "Enter the amount you received" });
   const { t, rights } = await staffToken(req);
   if (!(rights.isOwner || t.payToUserId === me(req))) throw new Fail(403, "Only the owner or the person whose account was paid can confirm receipt");
   if (!["PAYMENT_CLAIMED", "DISPUTED"].includes(t.status)) throw new Fail(409, "There is no payment waiting for confirmation");
-  if (p.data.amountKobo !== totalOf(t)) throw new Fail(400, `The amount received must equal the total due (${naira(totalOf(t))}). If the tenant sent a different amount, use "Not received" and settle it with them.`);
+  if (p.data.amountNaira !== totalOf(t)) throw new Fail(400, `The amount received must equal the total due (${naira(totalOf(t))}). If the tenant sent a different amount, use "Not received" and settle it with them.`);
   res.json({ status: "PAID", ...(await completeToken(t.id, me(req))) });
 });
 

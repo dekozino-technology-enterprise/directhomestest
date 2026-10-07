@@ -24,11 +24,10 @@ r.post("/images", store.single("file"), async (req, res) => {
   res.status(201).json({ url: "/media/" + req.file.filename });
 });
 const okImages = async (urls: string[]) => { for (const u of urls) if (!/^\/media\/[\w-]+\.(jpg|png|webp)$/.test(u) || !(await hasPublic(u.slice(7)))) return false; return true; };
-const kobo = (n: number) => Math.round(n * 100);
 
 const unitSchema = z.object({
   propertyId: z.string(), unitTypeId: z.string(), title: z.string().min(3).max(120), description: z.string().max(3000).optional(),
-  rentNaira: z.number().min(0), cautionNaira: z.number().min(0).default(0), serviceChargeNaira: z.number().min(0).default(0),
+  rentNaira: z.number().int().min(0), cautionNaira: z.number().int().min(0).default(0), serviceChargeNaira: z.number().int().min(0).default(0),
   payDuration: z.enum(["MONTHLY", "QUARTERLY", "BIANNUAL", "ANNUAL"]).default("ANNUAL"),
   bedrooms: z.number().int().min(0).max(20).default(0), bathrooms: z.number().int().min(0).max(20).default(0), toilets: z.number().int().min(0).max(20).default(0),
   furnished: z.boolean().default(false), availableFrom: z.string().datetime().optional(),
@@ -59,7 +58,7 @@ r.post("/", async (req, res) => {
   const priced = role.canSetPrice; // managers without price rights create the unit; the owner sets the price
   const unit = await prisma.unit.create({ data: {
     propertyId: d.propertyId, unitTypeId: d.unitTypeId, title: d.title, description: d.description, payDuration: d.payDuration,
-    rentKobo: priced ? kobo(d.rentNaira) : 0, cautionKobo: priced ? kobo(d.cautionNaira) : 0, serviceChargeKobo: priced ? kobo(d.serviceChargeNaira) : 0,
+    rentNaira: priced ? d.rentNaira : 0, cautionNaira: priced ? d.cautionNaira : 0, serviceChargeNaira: priced ? d.serviceChargeNaira : 0,
     bedrooms: d.bedrooms, bathrooms: d.bathrooms, toilets: d.toilets, furnished: d.furnished, availableFrom: d.availableFrom ? new Date(d.availableFrom) : undefined,
     features: { connect: d.featureIds.map((id) => ({ id })) }, images: { create: d.images.map((url, sortOrder) => ({ url, sortOrder })) },
   } });
@@ -87,7 +86,7 @@ r.patch("/:id", async (req, res) => {
   await prisma.$transaction([
     ...(images ? [prisma.unitImage.deleteMany({ where: { unitId: m.u.id } })] : []),
     prisma.unit.update({ where: { id: m.u.id }, data: { ...rest,
-      ...(rentNaira !== undefined ? { rentKobo: kobo(rentNaira) } : {}), ...(cautionNaira !== undefined ? { cautionKobo: kobo(cautionNaira) } : {}), ...(serviceChargeNaira !== undefined ? { serviceChargeKobo: kobo(serviceChargeNaira) } : {}),
+      ...(rentNaira !== undefined ? { rentNaira } : {}), ...(cautionNaira !== undefined ? { cautionNaira } : {}), ...(serviceChargeNaira !== undefined ? { serviceChargeNaira } : {}),
       ...(availableFrom ? { availableFrom: new Date(availableFrom) } : {}),
       ...(featureIds ? { features: { set: featureIds.map((id) => ({ id })) } } : {}),
       ...(images ? { images: { create: images.map((url, sortOrder) => ({ url, sortOrder })) } } : {}) } }),
@@ -100,7 +99,7 @@ r.post("/:id/publish", async (req, res) => {
   const m = await loadManaged(req); if (!m) return res.status(404).json({ error: "Not found" });
   if (!m.role.canListUnits) return res.status(403).json({ error: "Not allowed" });
   if (!["DRAFT", "MAINTENANCE"].includes(m.u.status)) return res.status(409).json({ error: "Unit is not in a publishable state" });
-  if (m.u.rentKobo <= 0) return res.status(400).json({ error: "Set the rent first (owner or a manager with price rights)" });
+  if (m.u.rentNaira <= 0) return res.status(400).json({ error: "Set the rent first (owner or a manager with price rights)" });
   if (m.u.images.length < 3) return res.status(400).json({ error: "Add at least 3 photos" });
   if (!(await isPropertyListable(m.u.propertyId))) return res.status(400).json({ error: "The property must be verified and its yearly fee paid before units can go live" });
   await prisma.unit.update({ where: { id: m.u.id }, data: { status: "AVAILABLE" } });
@@ -129,8 +128,8 @@ r.get("/:id", async (req, res) => {
   const m = await loadManaged(req); if (!m) return res.status(404).json({ error: "Not found" });
   const u = await prisma.unit.findUnique({ where: { id: m.u.id }, include: { images: { orderBy: { sortOrder: "asc" } }, features: { select: { id: true } } } });
   if (!u) return res.status(404).json({ error: "Not found" });
-  const { rentKobo, cautionKobo, serviceChargeKobo, images, features, ...rest } = u;
-  res.json({ ...rest, rentNaira: rentKobo / 100, cautionNaira: cautionKobo / 100, serviceChargeNaira: serviceChargeKobo / 100, images: images.map((i) => i.url), featureIds: features.map((f) => f.id), canSetPrice: m.role.canSetPrice });
+  const { images, features, ...rest } = u;
+  res.json({ ...rest, images: images.map((i) => i.url), featureIds: features.map((f) => f.id), canSetPrice: m.role.canSetPrice });
 });
 r.delete("/:id", async (req, res) => {
   const m = await loadManaged(req); if (!m) return res.status(404).json({ error: "Not found" });

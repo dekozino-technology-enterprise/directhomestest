@@ -26,7 +26,7 @@ async function locationIds(id: string) { // a state/LGA/city search includes eve
 
 const searchSchema = z.object({
   locationId: z.string().optional(), q: z.string().max(80).optional(), estate: z.string().max(80).optional(), unitTypeId: z.string().optional(),
-  minRent: z.coerce.number().min(0).optional(), maxRent: z.coerce.number().min(0).optional(),
+  minRent: z.coerce.number().int().min(0).optional(), maxRent: z.coerce.number().int().min(0).optional(),
   bedrooms: z.coerce.number().int().min(0).optional(), bathrooms: z.coerce.number().int().min(0).optional(),
   furnished: z.enum(["true", "false"]).optional(), payDuration: z.enum(["MONTHLY", "QUARTERLY", "BIANNUAL", "ANNUAL"]).optional(),
   featureIds: z.string().optional(), sort: z.enum(["newest", "priceAsc", "priceDesc"]).default("newest"),
@@ -34,8 +34,8 @@ const searchSchema = z.object({
 });
 
 const card = (u: any) => ({
-  id: u.id, title: u.title, type: u.unitType.name, rentKobo: u.rentKobo, cautionKobo: u.cautionKobo, serviceChargeKobo: u.serviceChargeKobo,
-  totalKobo: u.rentKobo + u.cautionKobo + u.serviceChargeKobo, // no hidden extras
+  id: u.id, title: u.title, type: u.unitType.name, rentNaira: u.rentNaira, cautionNaira: u.cautionNaira, serviceChargeNaira: u.serviceChargeNaira,
+  totalNaira: u.rentNaira + u.cautionNaira + u.serviceChargeNaira, // no hidden extras
   payDuration: u.payDuration, bedrooms: u.bedrooms, bathrooms: u.bathrooms, toilets: u.toilets, furnished: u.furnished,
   image: u.images[0]?.url ?? null, property: u.property.name, estate: u.property.estateName ?? u.property.parent?.name ?? null, location: u.property.location.name, verifiedOwner: true,
 });
@@ -48,7 +48,7 @@ r.get("/units", async (req, res) => {
   const q = p.data, conds: Prisma.UnitWhereInput[] = [...liveConds()]; // only live, verified, paid-up listings
   if (q.locationId) conds.push({ property: { locationId: { in: await locationIds(q.locationId) } } });
   if (q.unitTypeId) conds.push({ unitTypeId: q.unitTypeId });
-  conds.push({ rentKobo: { gt: 0, ...(q.minRent !== undefined ? { gte: q.minRent * 100 } : {}), ...(q.maxRent !== undefined ? { lte: q.maxRent * 100 } : {}) } });
+  conds.push({ rentNaira: { gt: 0, ...(q.minRent !== undefined ? { gte: q.minRent } : {}), ...(q.maxRent !== undefined ? { lte: q.maxRent } : {}) } });
   if (q.bedrooms !== undefined) conds.push({ bedrooms: { gte: q.bedrooms } });
   if (q.bathrooms !== undefined) conds.push({ bathrooms: { gte: q.bathrooms } });
   if (q.furnished) conds.push({ furnished: q.furnished === "true" });
@@ -58,7 +58,7 @@ r.get("/units", async (req, res) => {
   if (q.estate) conds.push({ property: { OR: [{ estateName: { contains: q.estate, mode: "insensitive" } }, { parent: { name: { contains: q.estate, mode: "insensitive" } } }] } });
 
   const where: Prisma.UnitWhereInput = { status: "AVAILABLE", AND: conds };
-  const orderBy = q.sort === "priceAsc" ? { rentKobo: "asc" as const } : q.sort === "priceDesc" ? { rentKobo: "desc" as const } : { createdAt: "desc" as const };
+  const orderBy = q.sort === "priceAsc" ? { rentNaira: "asc" as const } : q.sort === "priceDesc" ? { rentNaira: "desc" as const } : { createdAt: "desc" as const };
   const [total, rows] = await Promise.all([prisma.unit.count({ where }), prisma.unit.findMany({ where, orderBy, skip: (q.page - 1) * q.limit, take: q.limit, include })]);
   res.json({ total, page: q.page, pages: Math.ceil(total / q.limit), results: rows.map(card) });
 });

@@ -59,4 +59,3 @@ Object.assign(A, {
   agdel: (id) => go("Delete this template? Agreements already issued are not affected.", [], () => api("agreements/templates/" + id, { method: "DELETE" }).then(() => EXTRA.agreements()), "Delete"),
   agissue: async () => { const ids = [...document.querySelectorAll(".agsel:checked")].map((c) => c.value); if (!ids.length) throw new Error("Tick at least one tenant"); const d = await api("agreements/issue", { body: { templateId: document.getElementById("agt").value, tenancyIds: ids } }); say(`Issued to ${d.issued} tenant(s)` + (d.skipped.length ? `, ${d.skipped.length} skipped` : "")); EXTRA.agreements(); },
 });
-route();

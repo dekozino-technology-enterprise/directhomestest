@@ -66,25 +66,20 @@ const tierSchema = z.object({
   kind: z.enum(["HOUSE", "BUILDING", "ESTATE"]),
   minUnits: z.number().int().min(1).default(1),
   maxUnits: z.number().int().positive().nullable().optional(),
-  amountNaira: z.number().positive(),
+  amountNaira: z.number().int().positive(),
 });
 r.get("/fee-tiers", async (_q, res) => res.json(await prisma.onboardingFeeTier.findMany({ orderBy: [{ kind: "asc" }, { minUnits: "asc" }] })));
 r.post("/fee-tiers", async (req, res) => {
   const p = tierSchema.safeParse(req.body);
   if (!p.success) return res.status(400).json(p.error.flatten());
-  const { amountNaira, ...rest } = p.data;
-  const row = await prisma.onboardingFeeTier.create({ data: { ...rest, amountKobo: Math.round(amountNaira * 100) } });
+  const row = await prisma.onboardingFeeTier.create({ data: p.data });
   await audit(req, "CREATE_FEE_TIER", "OnboardingFeeTier", row.id, p.data);
   res.status(201).json(row);
 });
 r.patch("/fee-tiers/:id", async (req, res) => {
   const p = tierSchema.partial().extend({ active: z.boolean().optional() }).safeParse(req.body);
   if (!p.success) return res.status(400).json(p.error.flatten());
-  const { amountNaira, ...rest } = p.data;
-  const row = await prisma.onboardingFeeTier.update({
-    where: { id: req.params.id },
-    data: { ...rest, ...(amountNaira ? { amountKobo: Math.round(amountNaira * 100) } : {}) },
-  });
+  const row = await prisma.onboardingFeeTier.update({ where: { id: req.params.id }, data: p.data });
   await audit(req, "UPDATE_FEE_TIER", "OnboardingFeeTier", row.id, p.data);
   res.json(row);
 });
